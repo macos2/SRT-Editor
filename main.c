@@ -12,7 +12,7 @@
 int main(int argc,char *argv[]){
 	gtk_init(&argc,&argv);
 	gst_init(&argc,&argv);
-	MyMainWin *m=my_main_win_new("A","file:///home/tom/eclipse-workspace/Spring.mp4",TRUE);
+	MyMainWin *m=my_main_win_new(NULL,"file:///home/tom/eclipse-workspace/Spring.mp4",TRUE);
 	gtk_widget_show_all(m);
 	gtk_main();
 	return EXIT_SUCCESS;

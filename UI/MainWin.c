@@ -15,6 +15,8 @@ typedef struct {
 	GdkPixbuf *pixbuf;
 	GtkScrollbar *video_progress;
 	GstState cur_state;
+	GtkExpander *subtitle_trace;
+	MyTraceBar *trace_bar;
 } MyMainWinPrivate;
 
 G_DEFINE_TYPE_WITH_CODE(MyMainWin, my_main_win, GTK_TYPE_WINDOW,
@@ -98,6 +100,7 @@ video_progress_change_value_cb (GtkScrollbar     *video_progress,
                gdouble       value,
 			   MyMainWin *self){
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gst_element_set_state(priv->pipeline,GST_STATE_PLAYING);
 	gst_element_seek_simple(priv->pipeline,GST_FORMAT_TIME,GST_SEEK_FLAG_NONE,value*1000000);
 	gst_element_set_state(priv->pipeline,priv->cur_state);
 	return TRUE;
@@ -127,7 +130,7 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	cairo_stroke(cr);
 
 	cairo_set_source_rgba(cr, 0.8, 0.2, 0, 0.8);
-	cairo_arc(cr, 100, 50, 40, 0, 2 * G_PI);
+	cairo_arc(cr, 130, 50, 40, 0, 2 * G_PI);
 	cairo_set_line_width(cr, 40);
 	cairo_stroke(cr);
 
@@ -160,6 +163,8 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	//g_object_set(priv->progress,"lower",0,"upper",dur/1000000,"value",pos/1000000,NULL);
 	gtk_range_set_range(priv->video_progress,0,dur/1000000);
 	gtk_range_set_value(priv->video_progress,pos/1000000);
+	g_object_set(priv->trace_bar, "max", dur/1000000000., "min",0.,"value",pos/1000000000.,NULL);
+
 	gst_query_unref(duration);
 	gst_query_unref(position);
 	g_object_unref(bus);
@@ -222,6 +227,7 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass,volume_changed_cb);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, video_progress);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin, subtitle_trace);
 }
 ;
 
@@ -268,6 +274,8 @@ static void my_main_win_init(MyMainWin *self) {
 	gst_bus_add_signal_watch(bus);
 	g_signal_connect(priv->src, "pad-added", gst_src_new_pad, self);
 
+	priv->trace_bar=my_trace_bar_new("Sub Title");
+	gtk_container_add(priv->subtitle_trace,priv->trace_bar);
 }
 ;
 
