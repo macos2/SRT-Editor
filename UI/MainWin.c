@@ -231,31 +231,38 @@ void my_main_win_info_bar_show_info(MyMainWin *self, guchar timeout, gchar *fmt,
 
 gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gint w, h, cw, ch;
+	gint w, h;
 	gfloat radio;
 	gint64 dur, pos;
+	gint  ch = gtk_widget_get_allocated_height(priv->content);
+	gint  cw = gtk_widget_get_allocated_width(priv->content);
+
 	cairo_save(cr);
-	cairo_set_source_rgba(cr, 0., 0.8, 0., 0.3);
-	cairo_arc(cr, 60, 30, 80, 0, 2 * G_PI);
-	cairo_set_line_width(cr, 35);
-	cairo_stroke(cr);
-	cairo_set_source_rgba(cr, 0., 0.1, 1.0, 0.6);
-	cairo_arc(cr, 80, 160, 200, 0, 2 * G_PI);
-	cairo_set_line_width(cr, 15);
+	cairo_set_source_rgb(cr, 0., 0., 0.);
+	cairo_rectangle(cr,0,0,cw,ch);
+	cairo_fill(cr);
 	cairo_stroke(cr);
 
-	cairo_set_source_rgba(cr, 0.8, 0.2, 0, 0.8);
-	cairo_arc(cr, 130, 50, 40, 0, 2 * G_PI);
-	cairo_set_line_width(cr, 40);
-	cairo_stroke(cr);
-
-	cairo_restore(cr);
+//	cairo_save(cr);
+//	cairo_set_source_rgba(cr, 0., 0.8, 0., 0.3);
+//	cairo_arc(cr, 60, 30, 80, 0, 2 * G_PI);
+//	cairo_set_line_width(cr, 35);
+//	cairo_stroke(cr);
+//	cairo_set_source_rgba(cr, 0., 0.1, 1.0, 0.6);
+//	cairo_arc(cr, 80, 160, 200, 0, 2 * G_PI);
+//	cairo_set_line_width(cr, 15);
+//	cairo_stroke(cr);
+//
+//	cairo_set_source_rgba(cr, 0.8, 0.2, 0, 0.8);
+//	cairo_arc(cr, 130, 50, 40, 0, 2 * G_PI);
+//	cairo_set_line_width(cr, 40);
+//	cairo_stroke(cr);
+//
+//	cairo_restore(cr);
 	if (priv->pixbuf != NULL) {
 		cairo_save(cr);
 		w = gdk_pixbuf_get_width(priv->pixbuf);
 		h = gdk_pixbuf_get_height(priv->pixbuf);
-		ch = gtk_widget_get_allocated_height(priv->content);
-		cw = gtk_widget_get_allocated_width(priv->content);
 		cairo_translate(cr, cw / 2., ch / 2.);
 		radio = (gfloat) cw / w;
 		if (((gfloat) ch / h) < radio)
