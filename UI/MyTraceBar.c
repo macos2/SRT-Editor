@@ -141,9 +141,8 @@ void my_trace_bar_finalize(MyTraceBar *self) {
 }
 ;
 
-
-
-void my_trace_bar_draw_range(MyTraceBar *self,MyTraceBarRange *range,cairo_t *cr,gdouble x_unit){
+void my_trace_bar_draw_range(MyTraceBar *self, MyTraceBarRange *range,
+		cairo_t *cr, gdouble x_unit) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
@@ -152,28 +151,60 @@ void my_trace_bar_draw_range(MyTraceBar *self,MyTraceBarRange *range,cairo_t *cr
 	cairo_set_source_rgba(cr, range->color.red, range->color.green,
 			range->color.blue, range->color.alpha);
 	cairo_fill(cr);
-	cairo_set_source_rgba(cr,0,0,0,0.5);
-	cairo_set_font_size(cr,16);
-	cairo_text_extents(cr,range->describe,&text_ex);
-	cairo_move_to(cr,(range->start*x_unit+range->end*x_unit-text_ex.width)/2.0,26.+18.+text_ex.height/2.0);
-	cairo_show_text(cr,range->describe);
+	cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
+	cairo_set_font_size(cr, 16);
+	cairo_text_extents(cr, range->describe, &text_ex);
+	cairo_move_to(cr,
+			(range->start * x_unit + range->end * x_unit - text_ex.width) / 2.0,
+			26. + 18. + text_ex.height / 2.0);
+	cairo_show_text(cr, range->describe);
 	cairo_restore(cr);
 }
 
-void my_trace_bar_draw_preselected_range(MyTraceBar *self,MyTraceBarRange *range,cairo_t *cr,gdouble x_unit){
+void my_trace_bar_draw_preselected_range(MyTraceBar *self,
+		MyTraceBarRange *range, cairo_t *cr, gdouble x_unit) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
-	my_trace_bar_draw_range(self,range,cr,x_unit);
-	cairo_set_source_rgb(cr,1.,1.,1.);
-	cairo_set_line_width(cr,6.);
-	if (abs(priv->motion_x- range->start * x_unit )< 3){
+	my_trace_bar_draw_range(self, range, cr, x_unit);
+	cairo_set_source_rgb(cr, 1., 1., 1.);
+	cairo_set_line_width(cr, 4.);
+	if (abs(priv->motion_x - range->start * x_unit) < 3) {
 		cairo_move_to(cr, range->start * x_unit, 26);
 		cairo_line_to(cr, range->start * x_unit, 62);
-	}else if (abs(range->end * x_unit - priv->motion_x)< 3){
+	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
 		cairo_move_to(cr, range->end * x_unit, 26);
 		cairo_line_to(cr, range->end * x_unit, 62);
-	}else{
+	} else {
+		cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
+				(range->end - range->start) * x_unit, 36);
+	}
+	cairo_stroke(cr);
+	cairo_restore(cr);
+}
+
+void my_trace_bar_draw_selected_range(MyTraceBar *self, MyTraceBarRange *range,
+		cairo_t *cr, gdouble x_unit) {
+	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
+	cairo_text_extents_t text_ex;
+	cairo_save(cr);
+	my_trace_bar_draw_range(self, range, cr, x_unit);
+
+	cairo_set_line_width(cr, 2.);
+	priv->adj_range_max = FALSE;
+	priv->adj_range_min = FALSE;
+	if (abs(priv->motion_x - range->start * x_unit) < 3) {
+		cairo_set_source_rgb(cr, 0., 1., 0.3);
+		cairo_move_to(cr, range->start * x_unit, 26);
+		cairo_line_to(cr, range->start * x_unit, 62);
+		priv->adj_range_min = TRUE;
+	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
+		cairo_set_source_rgb(cr, 0.3,0.,1. );
+		cairo_move_to(cr, range->end * x_unit, 26);
+		cairo_line_to(cr, range->end * x_unit, 62);
+		priv->adj_range_max = TRUE;
+	} else {
+		cairo_set_source_rgb(cr, 1., 0.3, 0.);
 		cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
 				(range->end - range->start) * x_unit, 36);
 	}
@@ -189,8 +220,8 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	GtkAllocation alloc;
 	gint i = 0;
 	GHashTableIter iter;
-	MyTraceBarRange *range,*preselected_range=NULL;
-	gpointer key;
+	MyTraceBarRange *range;
+	gpointer key, preselected_range = NULL;
 	GList *mouse_in_range = NULL;
 	gdouble unit;
 	gtk_widget_get_allocation(self, &alloc);
@@ -247,84 +278,80 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	g_hash_table_iter_init(&iter, priv->table);
 	//cairo_scale(cr, alloc.width / (priv->max - priv->min), 1.0);
 	unit = alloc.width / (priv->max - priv->min);
-	i=priv->select_index;
 	while (g_hash_table_iter_next(&iter, &key, &range)) {
 		cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
 				(range->end - range->start) * unit, 36);
 		if (cairo_in_fill(cr, priv->motion_x, priv->motion_y)) {
-			if(priv->press_button == 1)
-				mouse_in_range = g_list_append(mouse_in_range, key);
-			else
-				if(i>=0)preselected_range=range;
-			i--;
+			mouse_in_range = g_list_append(mouse_in_range, key);
+		} else {
+			my_trace_bar_draw_range(self, range, cr, unit);
 		}
-		if(preselected_range!=range)my_trace_bar_draw_range(self,range,cr,unit);
+		cairo_new_path (cr);
 		if ((range->start < priv->value) && (priv->value < range->end))
 			g_signal_emit_by_name(self, "obj_active", key, NULL);
 	}
 
-	if(preselected_range!=NULL&&priv->press_button != 1){
-		if(priv->selected_key==NULL)
-		my_trace_bar_draw_preselected_range(self,preselected_range,cr,unit);
-		else
-		my_trace_bar_draw_range(self,range,cr,unit);
-	}
+	if (mouse_in_range != NULL && priv->press_button != 1) {
+		mouse_in_range = g_list_first(mouse_in_range);
+		i = priv->select_index;
+		while (1) {
+			preselected_range = mouse_in_range->data;
+			if (i == 0)
+				break;
+			else {
+				if (mouse_in_range->next != NULL)
+					mouse_in_range = mouse_in_range->next;
+				i--;
+			}
+		}
+		mouse_in_range = g_list_first(mouse_in_range);
+		while (1) {
+			range = g_hash_table_lookup(priv->table, mouse_in_range->data);
+			if (mouse_in_range->data == preselected_range)
+				my_trace_bar_draw_preselected_range(self, range, cr, unit);
+			else
+				my_trace_bar_draw_range(self, range, cr, unit);
+			if (mouse_in_range->next != NULL)
+				mouse_in_range = mouse_in_range->next;
+			else
+				break;
+		}
+		priv->selected_key = NULL;}
 
-	if(priv->select_index==i)priv->select_index=0;//the mouse is not in the key range area. clear the select index
-
-	if (mouse_in_range != NULL) {
+	if (mouse_in_range != NULL && priv->press_button == 1) {
 		if (priv->selected_key == NULL) {
 			//there are no key range have been selected beforce,detect the select key by the select index
 			while (1) {
-				if (priv->select_index == 0)//the key have been selected
+				if (priv->select_index == 0) //the key have been selected
 					break;
 				priv->select_index--;
-				if (mouse_in_range->next != NULL)	mouse_in_range = mouse_in_range->next;
+				if (mouse_in_range->next != NULL)
+					mouse_in_range = mouse_in_range->next;
 			}
 			priv->selected_key = mouse_in_range->data;
 		}
-		mouse_in_range=g_list_first(mouse_in_range);
-		while (1) {//draw the key range that haven't been selected.
-			if(priv->selected_key!=mouse_in_range->data){
-			range = g_hash_table_lookup(priv->table,mouse_in_range->data);
-			my_trace_bar_draw_range(self,range,cr,unit);
+		mouse_in_range = g_list_first(mouse_in_range);
+		while (1) { //draw the key range that haven't been selected.
+			if (priv->selected_key != mouse_in_range->data) {
+				range = g_hash_table_lookup(priv->table, mouse_in_range->data);
+				my_trace_bar_draw_range(self, range, cr, unit);
 			}
 			if (mouse_in_range->next == NULL)
 				break;
 			else
-				mouse_in_range=mouse_in_range->next;
+				mouse_in_range = mouse_in_range->next;
 		}
 		//draw the key range that have been selected.
 		range = g_hash_table_lookup(priv->table, priv->selected_key);
-		my_trace_bar_draw_range(self,range,cr,unit);
-		//deceide which to adjusted,and high light the adjust edge or range body.
-		priv->adj_range_max = FALSE;
-		priv->adj_range_min = FALSE;
-		if (abs(priv->press_x - range->start * unit )< 3)
-			priv->adj_range_min = TRUE;
-		if (abs(range->end * unit - priv->press_x )< 3)
-			priv->adj_range_max = TRUE;
-		if (priv->adj_range_min) {
-			cairo_move_to(cr, range->start * unit, 26);
-			cairo_line_to(cr, range->start * unit, 62);
-			cairo_set_source_rgba(cr, 0.3, 0.7, 0.0, 0.8);
-		} else if (priv->adj_range_max) {
-			cairo_move_to(cr, range->end * unit, 26);
-			cairo_line_to(cr, range->end * unit, 62);
-			cairo_set_source_rgba(cr, 0., 0.3, 0.7, 0.8);
-		} else {
-			cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
-					(range->end - range->start) * unit, 36);
-			cairo_set_source_rgba(cr, 0.7, 0., 0.3, 0.8);
-		}
-		cairo_set_line_width(cr, 2.);
-		cairo_stroke(cr);
-	} else {
+		my_trace_bar_draw_selected_range(self, range, cr, unit);}
+
+	if (mouse_in_range == NULL) {
+		//the mouse is not in the key range area. clear the select index and selected_key.
+		priv->press_button = 0;
+		priv->select_index = 0;
 		priv->selected_key = NULL;
 	}
-
 	cairo_restore(cr);
-
 	cairo_save(cr);
 	cairo_set_source_rgba(cr, 0, 0, 1., 0.7);
 	cairo_set_line_width(cr, 5);
