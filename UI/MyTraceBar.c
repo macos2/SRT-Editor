@@ -141,6 +141,46 @@ void my_trace_bar_finalize(MyTraceBar *self) {
 }
 ;
 
+
+
+void my_trace_bar_draw_range(MyTraceBar *self,MyTraceBarRange *range,cairo_t *cr,gdouble x_unit){
+	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
+	cairo_text_extents_t text_ex;
+	cairo_save(cr);
+	cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
+			(range->end - range->start) * x_unit, 36);
+	cairo_set_source_rgba(cr, range->color.red, range->color.green,
+			range->color.blue, range->color.alpha);
+	cairo_fill(cr);
+	cairo_set_source_rgba(cr,0,0,0,0.5);
+	cairo_set_font_size(cr,16);
+	cairo_text_extents(cr,range->describe,&text_ex);
+	cairo_move_to(cr,(range->start*x_unit+range->end*x_unit-text_ex.width)/2.0,26.+18.+text_ex.height/2.0);
+	cairo_show_text(cr,range->describe);
+	cairo_restore(cr);
+}
+
+void my_trace_bar_draw_preselected_range(MyTraceBar *self,MyTraceBarRange *range,cairo_t *cr,gdouble x_unit){
+	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
+	cairo_text_extents_t text_ex;
+	cairo_save(cr);
+	my_trace_bar_draw_range(self,range,cr,x_unit);
+	cairo_set_source_rgb(cr,1.,1.,1.);
+	cairo_set_line_width(cr,6.);
+	if (abs(priv->motion_x- range->start * x_unit )< 3){
+		cairo_move_to(cr, range->start * x_unit, 26);
+		cairo_line_to(cr, range->start * x_unit, 62);
+	}else if (abs(range->end * x_unit - priv->motion_x)< 3){
+		cairo_move_to(cr, range->end * x_unit, 26);
+		cairo_line_to(cr, range->end * x_unit, 62);
+	}else{
+		cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
+				(range->end - range->start) * x_unit, 36);
+	}
+	cairo_stroke(cr);
+	cairo_restore(cr);
+}
+
 gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	MyTraceBarClass *class = MY_TRACE_BAR_GET_CLASS(self);
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
@@ -149,9 +189,9 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	GtkAllocation alloc;
 	gint i = 0;
 	GHashTableIter iter;
-	MyTraceBarRange *range;
+	MyTraceBarRange *range,*preselected_range=NULL;
 	gpointer key;
-	GList *selected_key = NULL;
+	GList *mouse_in_range = NULL;
 	gdouble unit;
 	gtk_widget_get_allocation(self, &alloc);
 	cairo_save(cr);
@@ -212,50 +252,57 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
 				(range->end - range->start) * unit, 36);
 		if (cairo_in_fill(cr, priv->motion_x, priv->motion_y)) {
-			if(priv->press_button == 1)selected_key = g_list_append(selected_key, key);
-			if(i==0){
-				cairo_set_source_rgba(cr, 1., 1.,1., 0.8);
-				cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
-						(range->end - range->start) * unit, 36);
-				cairo_stroke(cr);
-			}
+			if(priv->press_button == 1)
+				mouse_in_range = g_list_append(mouse_in_range, key);
+			else
+				if(i>=0)preselected_range=range;
 			i--;
 		}
-		cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
-				(range->end - range->start) * unit, 36);
-		cairo_set_source_rgba(cr, range->color.red, range->color.green,
-				range->color.blue, range->color.alpha);
-		cairo_fill(cr);
-		cairo_set_source_rgba(cr,0,0,0,0.8);
-		cairo_set_font_size(cr,20);
-		cairo_text_extents(cr,range->describe,&text_ex);
-		cairo_move_to(cr,(range->start*unit+range->end*unit-text_ex.width)/2.0,56.);
-		cairo_show_text(cr,range->describe);
-
+		if(preselected_range!=range)my_trace_bar_draw_range(self,range,cr,unit);
 		if ((range->start < priv->value) && (priv->value < range->end))
 			g_signal_emit_by_name(self, "obj_active", key, NULL);
 	}
-	if(priv->select_index==i)priv->select_index=0;//the mouse is not in the range area.
 
-	if (selected_key != NULL) {
-		if (priv->selected_key == NULL) {//key have never been selected before
+	if(preselected_range!=NULL&&priv->press_button != 1){
+		if(priv->selected_key==NULL)
+		my_trace_bar_draw_preselected_range(self,preselected_range,cr,unit);
+		else
+		my_trace_bar_draw_range(self,range,cr,unit);
+	}
+
+	if(priv->select_index==i)priv->select_index=0;//the mouse is not in the key range area. clear the select index
+
+	if (mouse_in_range != NULL) {
+		if (priv->selected_key == NULL) {
+			//there are no key range have been selected beforce,detect the select key by the select index
 			while (1) {
-				if (priv->select_index == 0)
+				if (priv->select_index == 0)//the key have been selected
 					break;
 				priv->select_index--;
-				if (selected_key->next != NULL)
-					selected_key = selected_key->next;
+				if (mouse_in_range->next != NULL)	mouse_in_range = mouse_in_range->next;
 			}
-			priv->selected_key = selected_key->data;
+			priv->selected_key = mouse_in_range->data;
 		}
+		mouse_in_range=g_list_first(mouse_in_range);
+		while (1) {//draw the key range that haven't been selected.
+			if(priv->selected_key!=mouse_in_range->data){
+			range = g_hash_table_lookup(priv->table,mouse_in_range->data);
+			my_trace_bar_draw_range(self,range,cr,unit);
+			}
+			if (mouse_in_range->next == NULL)
+				break;
+			else
+				mouse_in_range=mouse_in_range->next;
+		}
+		//draw the key range that have been selected.
 		range = g_hash_table_lookup(priv->table, priv->selected_key);
-
+		my_trace_bar_draw_range(self,range,cr,unit);
 		//deceide which to adjusted,and high light the adjust edge or range body.
 		priv->adj_range_max = FALSE;
 		priv->adj_range_min = FALSE;
-		if (priv->press_x - range->start * unit < 5)
+		if (abs(priv->press_x - range->start * unit )< 3)
 			priv->adj_range_min = TRUE;
-		if (range->end * unit - priv->press_x < 5)
+		if (abs(range->end * unit - priv->press_x )< 3)
 			priv->adj_range_max = TRUE;
 		if (priv->adj_range_min) {
 			cairo_move_to(cr, range->start * unit, 26);
@@ -286,7 +333,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 			alloc.height);
 	cairo_stroke(cr);
 	cairo_restore(cr);
-	g_list_free(selected_key);
+	g_list_free(mouse_in_range);
 	return TRUE; //GTK_WIDGET_CLASS(&class->parent_class)->draw(self, cr);
 }
 
@@ -401,6 +448,8 @@ static void my_trace_bar_init(MyTraceBar *self) {
 			my_trace_bar_range_new(20., 30., "debug1", 0.8, 0.3, 0.8, 0.7));
 	g_hash_table_insert(priv->table, priv->describe,
 			my_trace_bar_range_new(20., 30., "debug2", 0, 0.8, 0.5, 0.7));
+	g_hash_table_insert(priv->table, priv->table,
+			my_trace_bar_range_new(20., 40., "debug2", 0, 0.8, 0.7, 0.3));
 
 	gtk_widget_add_events(self,
 			GDK_BUTTON_PRESS_MASK | GDK_POINTER_MOTION_MASK
