@@ -22,6 +22,7 @@ typedef struct {
 	gpointer selected_key;
 	gboolean adj_range_max;
 	gboolean adj_range_min;
+	gboolean actived_notify;
 } MyTraceBarPrivate;
 
 typedef enum {
@@ -88,6 +89,7 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 		}
 		;
 		g_object_notify(self, "value");
+		priv->actived_notify=FALSE;
 		break;
 	default:
 		//G_OBJECT_WARN_INVALID_PROPERTY_ID(self,property_id,pspec);
@@ -289,9 +291,10 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 			my_trace_bar_draw_range(self, range, cr, unit,1.0);
 		}
 		if ((range->start < priv->value) && (priv->value < range->end))
-			g_signal_emit_by_name(self, "obj_active", key, NULL);
+			if(priv->actived_notify==FALSE)g_signal_emit_by_name(self, "obj_active", key, NULL);
 	}
 	cairo_new_path (cr);
+	priv->actived_notify=TRUE;
 	if (mouse_in_range != NULL && priv->press_button != 1) {
 		mouse_in_range = g_list_first(mouse_in_range);
 		i = priv->select_index;
@@ -345,7 +348,9 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		}
 		//draw the key range that have been selected.
 		range = g_hash_table_lookup(priv->table, priv->selected_key);
-		my_trace_bar_draw_selected_range(self, range, cr, unit);}
+		my_trace_bar_draw_selected_range(self, range, cr, unit);
+		g_signal_emit_by_name(self,"obj_selected",priv->selected_key,NULL);
+	}
 
 	if (mouse_in_range == NULL) {
 		//the mouse is not in the key range area. clear the select index and selected_key.
@@ -451,6 +456,9 @@ static void my_trace_bar_class_init(MyTraceBarClass *klass) {
 	g_signal_new("obj_active", MY_TYPE_TRACE_BAR, G_SIGNAL_RUN_LAST,
 			G_STRUCT_OFFSET(MyTraceBarClass, obj_active), NULL, NULL, NULL,
 			G_TYPE_NONE, 1, G_TYPE_POINTER, NULL);
+	g_signal_new("obj_selected", MY_TYPE_TRACE_BAR, G_SIGNAL_RUN_LAST,
+			G_STRUCT_OFFSET(MyTraceBarClass, obj_selected), NULL, NULL, NULL,
+			G_TYPE_NONE, 1, G_TYPE_POINTER, NULL);
 	g_signal_new("obj_range_change", MY_TYPE_TRACE_BAR, G_SIGNAL_RUN_LAST,
 			G_STRUCT_OFFSET(MyTraceBarClass, obj_range_change), NULL, NULL,
 			NULL, G_TYPE_NONE, 3, G_TYPE_POINTER, G_TYPE_FLOAT, G_TYPE_FLOAT,
@@ -471,15 +479,8 @@ static void my_trace_bar_init(MyTraceBar *self) {
 	priv->min = 0.;
 	priv->value = 0.;
 	priv->describe = g_strdup("\0");
+	priv->actived_notify=FALSE;
 	gtk_widget_set_size_request(self, 100, 64);
-
-	g_hash_table_insert(priv->table, self,
-			my_trace_bar_range_new(40., 70., "debug1", 0.8, 0.3, 0.8, 0.7));
-	g_hash_table_insert(priv->table, priv->describe,
-			my_trace_bar_range_new(20., 30., "debug2", 0, 0.8, 0.5, 0.7));
-	g_hash_table_insert(priv->table, priv->table,
-			my_trace_bar_range_new(50., 60., "debug3", 0, 0.8, 0.7, 0.3));
-
 	gtk_widget_add_events(self,
 			GDK_BUTTON_PRESS_MASK | GDK_POINTER_MOTION_MASK
 					| GDK_BUTTON1_MOTION_MASK | GDK_BUTTON2_MOTION_MASK
@@ -506,7 +507,7 @@ const gchar* my_trace_bar_get_describe(MyTraceBar *bar){
 }
 
 
-void my_trace_bar_new_obj_range(MyTraceBar *bar,gpointer obj,gdouble start,gdouble end,const gchar *describe,const GdkRGBA *color){
+void my_trace_bar_add_obj_range(MyTraceBar *bar,gpointer obj,gdouble start,gdouble end,const gchar *describe,const GdkRGBA *color){
 	MyTraceBarRange *range=NULL;
 	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
 	range=g_hash_table_lookup(priv->table,obj);
@@ -525,6 +526,11 @@ void my_trace_bar_new_obj_range(MyTraceBar *bar,gpointer obj,gdouble start,gdoub
 	}
 }
 
+void my_trace_bar_del_obj_range(MyTraceBar *bar,gpointer obj){
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	g_hash_table_remove(priv->table,obj);
+}
+
 const gchar* my_trace_bar_get_obj_describe(MyTraceBar *bar,gpointer obj){
 	MyTraceBarRange *range=NULL;
 	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
@@ -539,6 +545,7 @@ void my_trace_bar_set_obj_describe(MyTraceBar *bar,gpointer obj,const gchar *des
 	if(range!=NULL){
 		if(range->describe!=NULL)g_free(range->describe);
 		range->describe=g_strdup(describe);
+		g_signal_emit_by_name(bar,"obj_describe_change",obj,range->describe,NULL);
 	};
 }
 void my_trace_bar_get_obj_range(MyTraceBar *bar,gpointer obj,gdouble *start,gdouble *end){
@@ -577,6 +584,7 @@ void my_trace_bar_set_obj_color(MyTraceBar *bar,gpointer obj,const GdkRGBA *colo
 		range->color.blue=color->blue;
 		range->color.green=color->green;
 		range->color.red=color->red;
+		g_signal_emit_by_name(bar,"obj_color_change",obj,&range->color,NULL);
 	}
 }
 
