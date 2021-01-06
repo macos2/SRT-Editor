@@ -8,13 +8,13 @@
 #include "MyTraceBar.h"
 
 typedef struct {
-	gfloat start, end;
+	gdouble start, end;
 	gchar *describe;
 	GdkRGBA color;
 } MyTraceBarRange;
 
 typedef struct {
-	gfloat min, max, value;
+	gdouble min, max, value;
 	GHashTable *table;
 	gchar *describe;
 	gdouble press_x, press_y, motion_x, motion_y;
@@ -31,7 +31,7 @@ typedef enum {
 G_DEFINE_TYPE_WITH_CODE(MyTraceBar, my_trace_bar, GTK_TYPE_DRAWING_AREA,
 		G_ADD_PRIVATE(MyTraceBar));
 
-MyTraceBarRange* my_trace_bar_range_new(gfloat start, gfloat end,
+MyTraceBarRange* my_trace_bar_range_new(gdouble start, gdouble end,
 		gchar *describe, gdouble r, gdouble g, gdouble b, gdouble alpha) {
 	MyTraceBarRange *range = g_malloc(sizeof(MyTraceBarRange));
 	range->start = start;
@@ -52,19 +52,19 @@ void my_trace_bar_range_free(MyTraceBarRange *range) {
 void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 		const GValue *value, GParamSpec *pspec) {
 	MyTraceBarClass *class = MY_TRACE_BAR_GET_CLASS(self);
-	gfloat temp;
+	gdouble temp;
 	gchar *temp_describe;
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	switch (property_id) {
 	case MyTraceBarMax:
-		temp = g_value_get_float(value);
+		temp = g_value_get_double(value);
 		if (temp > priv->min) {
 			priv->max = temp;
 			g_object_notify(self, "max");
 		}
 		break;
 	case MyTraceBarMin:
-		temp = g_value_get_float(value);
+		temp = g_value_get_double(value);
 		if (temp < priv->max) {
 			priv->min = temp;
 			g_object_notify(self, "min");
@@ -78,7 +78,7 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 		g_object_notify(self, "describe");
 		break;
 	case MyTraceBarValue:
-		temp = g_value_get_float(value);
+		temp = g_value_get_double(value);
 		if (temp < priv->min) { //smaller than min
 			priv->value = priv->min;
 		} else if (temp > priv->max) { //bigger than max
@@ -105,20 +105,20 @@ void my_trace_bar_get_property(MyTraceBar *self, guint property_id,
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	switch (property_id) {
 	case MyTraceBarMax:
-		g_value_init(value, G_TYPE_FLOAT);
-		g_value_set_float(value, priv->max);
+		g_value_init(value, G_TYPE_DOUBLE);
+		g_value_set_double(value, priv->max);
 		break;
 	case MyTraceBarMin:
-		g_value_init(value, G_TYPE_FLOAT);
-		g_value_set_float(value, priv->min);
+		g_value_init(value, G_TYPE_DOUBLE);
+		g_value_set_double(value, priv->min);
 		break;
 	case MyTraceBarDescribe:
 		g_value_init(value, G_TYPE_STRING);
 		g_value_set_string(value, priv->describe);
 		break;
 	case MyTraceBarValue:
-		g_value_init(value, G_TYPE_FLOAT);
-		g_value_set_float(value, priv->value);
+		g_value_init(value, G_TYPE_DOUBLE);
+		g_value_set_double(value, priv->value);
 		break;
 	default:
 		//G_OBJECT_WARN_INVALID_PROPERTY_ID(self,property_id,pspec);
@@ -142,14 +142,14 @@ void my_trace_bar_finalize(MyTraceBar *self) {
 ;
 
 void my_trace_bar_draw_range(MyTraceBar *self, MyTraceBarRange *range,
-		cairo_t *cr, gdouble x_unit) {
+		cairo_t *cr, gdouble x_unit,gdouble alpha) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
 	cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
 			(range->end - range->start) * x_unit, 36);
 	cairo_set_source_rgba(cr, range->color.red, range->color.green,
-			range->color.blue, range->color.alpha);
+			range->color.blue, range->color.alpha*alpha);
 	cairo_fill(cr);
 	cairo_set_source_rgba(cr, 0, 0, 0, 0.5);
 	cairo_set_font_size(cr, 16);
@@ -166,7 +166,7 @@ void my_trace_bar_draw_preselected_range(MyTraceBar *self,
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
-	my_trace_bar_draw_range(self, range, cr, x_unit);
+	my_trace_bar_draw_range(self, range, cr, x_unit,0.8);
 	cairo_set_source_rgb(cr, 1., 1., 1.);
 	cairo_set_line_width(cr, 4.);
 	if (abs(priv->motion_x - range->start * x_unit) < 3) {
@@ -188,7 +188,7 @@ void my_trace_bar_draw_selected_range(MyTraceBar *self, MyTraceBarRange *range,
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
-	my_trace_bar_draw_range(self, range, cr, x_unit);
+	my_trace_bar_draw_range(self, range, cr, x_unit,0.8);
 
 	cairo_set_line_width(cr, 2.);
 	priv->adj_range_max = FALSE;
@@ -254,7 +254,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	for (i = 0; i < 11; i++) {
 		cairo_move_to(cr, 0, 0);
 		cairo_line_to(cr, 0, 10);
-		g_sprintf(temp, "%.2f\0",
+		g_sprintf(temp, "%.2lf\0",
 				i * (priv->max - priv->min) / 10. + priv->min);
 		cairo_text_extents(cr, temp, &text_ex);
 		switch (i) {
@@ -279,18 +279,19 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	//cairo_scale(cr, alloc.width / (priv->max - priv->min), 1.0);
 	unit = alloc.width / (priv->max - priv->min);
 	while (g_hash_table_iter_next(&iter, &key, &range)) {
-		cairo_rectangle(cr, (range->start - priv->min) * unit, 26.,
-				(range->end - range->start) * unit, 36);
+		cairo_new_path (cr);
+		cairo_rectangle(cr, (range->start - priv->min) * unit-3., 26.,
+				(range->end - range->start) * unit+6., 36);
 		if (cairo_in_fill(cr, priv->motion_x, priv->motion_y)) {
 			mouse_in_range = g_list_append(mouse_in_range, key);
 		} else {
-			my_trace_bar_draw_range(self, range, cr, unit);
+			cairo_new_path (cr);
+			my_trace_bar_draw_range(self, range, cr, unit,1.0);
 		}
-		cairo_new_path (cr);
 		if ((range->start < priv->value) && (priv->value < range->end))
 			g_signal_emit_by_name(self, "obj_active", key, NULL);
 	}
-
+	cairo_new_path (cr);
 	if (mouse_in_range != NULL && priv->press_button != 1) {
 		mouse_in_range = g_list_first(mouse_in_range);
 		i = priv->select_index;
@@ -306,16 +307,17 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		}
 		mouse_in_range = g_list_first(mouse_in_range);
 		while (1) {
-			range = g_hash_table_lookup(priv->table, mouse_in_range->data);
-			if (mouse_in_range->data == preselected_range)
-				my_trace_bar_draw_preselected_range(self, range, cr, unit);
-			else
-				my_trace_bar_draw_range(self, range, cr, unit);
+			if (mouse_in_range->data != preselected_range){
+				range = g_hash_table_lookup(priv->table, mouse_in_range->data);
+				my_trace_bar_draw_range(self, range, cr, unit,1.0);
+			}
 			if (mouse_in_range->next != NULL)
 				mouse_in_range = mouse_in_range->next;
 			else
 				break;
 		}
+		range = g_hash_table_lookup(priv->table,  preselected_range);
+		my_trace_bar_draw_preselected_range(self, range, cr, unit);
 		priv->selected_key = NULL;}
 
 	if (mouse_in_range != NULL && priv->press_button == 1) {
@@ -334,7 +336,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		while (1) { //draw the key range that haven't been selected.
 			if (priv->selected_key != mouse_in_range->data) {
 				range = g_hash_table_lookup(priv->table, mouse_in_range->data);
-				my_trace_bar_draw_range(self, range, cr, unit);
+				my_trace_bar_draw_range(self, range, cr, unit,1.0);
 			}
 			if (mouse_in_range->next == NULL)
 				break;
@@ -431,20 +433,20 @@ static void my_trace_bar_class_init(MyTraceBarClass *klass) {
 	widget_class->button_release_event = my_trace_bar_button_release;
 	//widget_class->button_press_event
 	g_object_class_install_property(klass, MyTraceBarMax,
-			g_param_spec_float("max", "max", "the max vaule of the bar",
-					-1. * G_MAXFLOAT, G_MAXFLOAT, 100.,
+			g_param_spec_double("max", "max", "the max vaule of the bar",
+					-1. * G_MAXDOUBLE, G_MAXDOUBLE, 100.,
 					G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 	g_object_class_install_property(klass, MyTraceBarMin,
-			g_param_spec_float("min", "min", "the min vaule of the bar",
-					-1. * G_MAXFLOAT, G_MAXFLOAT, 0.,
+			g_param_spec_double("min", "min", "the min vaule of the bar",
+					-1. * G_MAXDOUBLE, G_MAXDOUBLE, 0.,
 					G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 	g_object_class_install_property(klass, MyTraceBarDescribe,
 			g_param_spec_string("describe", "describe",
 					"the describe of the bar", "\0",
 					G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 	g_object_class_install_property(klass, MyTraceBarValue,
-			g_param_spec_float("value", "value", "the vaule of the bar",
-					-1. * G_MAXFLOAT, G_MAXFLOAT, 0.,
+			g_param_spec_double("value", "value", "the vaule of the bar",
+					-1. * G_MAXDOUBLE, G_MAXDOUBLE, 0.,
 					G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 	g_signal_new("obj_active", MY_TYPE_TRACE_BAR, G_SIGNAL_RUN_LAST,
 			G_STRUCT_OFFSET(MyTraceBarClass, obj_active), NULL, NULL, NULL,
@@ -472,11 +474,11 @@ static void my_trace_bar_init(MyTraceBar *self) {
 	gtk_widget_set_size_request(self, 100, 64);
 
 	g_hash_table_insert(priv->table, self,
-			my_trace_bar_range_new(20., 30., "debug1", 0.8, 0.3, 0.8, 0.7));
+			my_trace_bar_range_new(40., 70., "debug1", 0.8, 0.3, 0.8, 0.7));
 	g_hash_table_insert(priv->table, priv->describe,
 			my_trace_bar_range_new(20., 30., "debug2", 0, 0.8, 0.5, 0.7));
 	g_hash_table_insert(priv->table, priv->table,
-			my_trace_bar_range_new(20., 40., "debug2", 0, 0.8, 0.7, 0.3));
+			my_trace_bar_range_new(50., 60., "debug3", 0, 0.8, 0.7, 0.3));
 
 	gtk_widget_add_events(self,
 			GDK_BUTTON_PRESS_MASK | GDK_POINTER_MOTION_MASK
@@ -489,3 +491,93 @@ MyTraceBar* my_trace_bar_new(gchar *describe) {
 	NULL);
 	return bar;
 }
+
+gdouble my_trace_bar_get_value(MyTraceBar *bar){
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	return priv->value;
+}
+
+void my_trace_bar_set_value(MyTraceBar *bar,gdouble value){
+g_object_set(bar,"value",value,NULL);
+}
+const gchar* my_trace_bar_get_describe(MyTraceBar *bar){
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	return priv->describe;
+}
+
+
+void my_trace_bar_new_obj_range(MyTraceBar *bar,gpointer obj,gdouble start,gdouble end,const gchar *describe,const GdkRGBA *color){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range==NULL){
+		range=my_trace_bar_range_new(start,end,describe,color->red,color->green,color->blue,color->alpha);
+		g_hash_table_insert(priv->table,obj,range);
+	}else{
+		range->start=start;
+		range->end=end;
+		range->color.alpha=color->alpha;
+		range->color.blue=color->blue;
+		range->color.green=color->green;
+		range->color.red=color->red;
+		if(range->describe!=NULL)g_free(range->describe);
+		range->describe=g_strdup(describe);
+	}
+}
+
+const gchar* my_trace_bar_get_obj_describe(MyTraceBar *bar,gpointer obj){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL)return range->describe;
+	return NULL;
+}
+void my_trace_bar_set_obj_describe(MyTraceBar *bar,gpointer obj,const gchar *describe){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL){
+		if(range->describe!=NULL)g_free(range->describe);
+		range->describe=g_strdup(describe);
+	};
+}
+void my_trace_bar_get_obj_range(MyTraceBar *bar,gpointer obj,gdouble *start,gdouble *end){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL){
+		*start=range->start;
+		*end=range->end;
+	}
+}
+void my_trace_bar_set_obj_range(MyTraceBar *bar,gpointer obj,const gdouble start,const gdouble end){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL){
+		range->start=start<end?start:end;
+		range->end=start<end?end:start;
+	}
+}
+const GdkRGBA *my_trace_bar_get_obj_color(MyTraceBar *bar,gpointer obj){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL){
+		return &range->color;
+	}
+	return NULL;
+}
+void my_trace_bar_set_obj_color(MyTraceBar *bar,gpointer obj,const GdkRGBA *color){
+	MyTraceBarRange *range=NULL;
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	range=g_hash_table_lookup(priv->table,obj);
+	if(range!=NULL){
+		range->color.alpha=color->alpha;
+		range->color.blue=color->blue;
+		range->color.green=color->green;
+		range->color.red=color->red;
+	}
+}
+
+
