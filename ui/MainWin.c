@@ -5,8 +5,9 @@
  *      Author: tom
  */
 
-#include "MainWin.h"
-#include "gresource.h"
+#include "../ui/MainWin.h"
+
+#include "../ui/gresource.h"
 typedef struct {
 	GstElement *src, *video_convert, *audio_convert, *videosink, *audiosink,
 			*volume;
@@ -651,7 +652,7 @@ MyMainWin* my_main_win_new(gchar *title, gchar *uri, gboolean play) {
 		g_print("state:%02x\n", state);
 		priv->cur_state = GST_STATE_PLAYING;
 	}
-	my_main_win_info_bar_show_info(m, 3, "Good Morning");
+	//my_main_win_info_bar_show_info(m, 3, "Good Morning");
 	return m;
 }
 ;

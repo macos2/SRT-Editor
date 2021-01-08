@@ -11,8 +11,8 @@
 #include <cairo.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
-#include "SubTitle.h"
-#include "MyTraceBar.h"
+
+#include "../ui/MyTraceBar.h"
 
 G_BEGIN_DECLS
 #define MY_TYPE_MAIN_WIN my_main_win_get_type()

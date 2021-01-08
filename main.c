@@ -7,7 +7,8 @@
 
 #include <gtk/gtk.h>
 #include <gst/gst.h>
-#include "UI/MainWin.h"
+
+#include "ui/MainWin.h"
 
 int main(int argc,char *argv[]){
 	gtk_init(&argc,&argv);

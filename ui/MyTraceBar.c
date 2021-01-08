@@ -5,7 +5,7 @@
  *      Author: tom
  */
 
-#include "MyTraceBar.h"
+#include "../ui/MyTraceBar.h"
 
 typedef struct {
 	gdouble start, end;

@@ -810,7 +810,7 @@ It will be saved to home/photo directory</property>
                         <property name="margin_right">5</property>
                         <property name="margin_top">5</property>
                         <property name="margin_bottom">5</property>
-                        <property name="font">Sans 12</property>
+                        <property name="font">Sans Bold 30</property>
                         <property name="language">zh-cn</property>
                         <property name="preview_text">Oh , My God !!!</property>
                       </object>
