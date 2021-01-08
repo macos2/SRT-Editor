@@ -14,7 +14,7 @@ typedef struct {
 	GHashTable *subtitle_table;
 	GtkDrawingArea *content;
 	GdkPixbuf *pixbuf;
-	GtkScrollbar *video_progress;
+	GtkScale *video_progress;
 	GstState cur_state;
 	GtkBox *subtitle_trace;
 	MyTraceBar *trace_bar;
@@ -29,10 +29,13 @@ typedef struct {
 	GtkPopoverMenu *pop_menu;
 	GtkSpinButton *pop_menu_start, *pop_menu_end;
 	GtkEntry *pop_menu_subtitle,*pop_menu_label;
-	GtkColorButton *subtitle_color;
+	GtkColorButton *subtitle_color,*subtitle_font_fill_color,*subtitle_font_stroke_color,*pop_menu_color;
 	guint64 subtitle_index;
 	GList *active_subtitle;
 	GtkFontButton *subtitle_font;
+	gpointer *selected_obj;
+	GtkPopover *pop_label;
+	GtkLabel *pop_label_text;
 } MyMainWinPrivate;
 
 G_DEFINE_TYPE_WITH_CODE(MyMainWin, my_main_win, GTK_TYPE_WINDOW,
@@ -47,10 +50,12 @@ void my_main_win_open(GtkMenuItem *menuitem, MyMainWin *self) {
 	gint repo;
 	gchar *uri;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	g_print("Open");
+	g_object_get(priv->src,"uri",&uri,NULL);
 	GtkDialog *dialog = gtk_file_chooser_dialog_new("Open File", self,
 			GTK_FILE_CHOOSER_ACTION_OPEN, GTK_STOCK_OPEN, GTK_RESPONSE_OK,
 			GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, NULL);
+	gtk_file_chooser_set_uri(dialog,uri);
+	g_free(uri);
 	repo = gtk_dialog_run(dialog);
 	if (repo == GTK_RESPONSE_OK) {
 		uri = gtk_file_chooser_get_uri(dialog);
@@ -234,12 +239,98 @@ void add_subtitle_cb(GtkButton *button, MyMainWin *self) {
 }
 
 void pop_menu_del_cb(GtkButton *button, MyMainWin *self) {
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	my_trace_bar_del_obj_range(priv->trace_bar,priv->selected_obj);
+	g_free(priv->selected_obj);
+	priv->selected_obj=NULL;
+	gtk_popover_popdown(priv->pop_menu);
+}
 
+void pop_menu_color_color_set_cb(GtkColorButton *widget,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	GdkRGBA color;
+	gtk_color_chooser_get_rgba(priv->pop_menu_color,&color);
+	my_trace_bar_set_obj_color(priv->trace_bar,priv->selected_obj,&color);
+}
+
+void pop_menu_subtitle_activate_cb(GtkEntry *entry,MyMainWin *self){
+g_print("changed subtitle");
+
+}
+
+void pop_menu_end_change_value_cb(GtkSpinButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gdouble end, start;
+	my_trace_bar_get_obj_range(priv->trace_bar,priv->selected_obj,&start,&end);
+	end=gtk_spin_button_get_value(priv->pop_menu_end);
+	my_trace_bar_set_obj_range(priv->trace_bar,priv->selected_obj,start,end);
+}
+
+void pop_menu_label_activate_cb(GtkEntry *entry,MyMainWin *self){
+	gchar *text;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	text=gtk_entry_get_text(priv->pop_menu_label);
+	my_trace_bar_set_obj_describe(priv->trace_bar,priv->selected_obj,text);
+}
+
+void pop_menu_start_change_value_cb(GtkSpinButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gdouble end, start;
+	my_trace_bar_get_obj_range(priv->trace_bar,priv->selected_obj,&start,&end);
+	start=gtk_spin_button_get_value(priv->pop_menu_start);
+	my_trace_bar_set_obj_range(priv->trace_bar,priv->selected_obj,start,end);
+}
+
+void my_main_win_trace_bar_obj_selected(MyTraceBar *bar,gpointer obj,GdkRectangle *rectangle,MyMainWin *self){
+	gdouble s,e;
+	GdkRGBA *color;
+	gchar *describe;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	my_trace_bar_get_obj_range(priv->trace_bar,obj,&s,&e);
+	color=my_trace_bar_get_obj_color(priv->trace_bar,obj);
+	describe=my_trace_bar_get_obj_describe(priv->trace_bar,obj);
+	gtk_popover_set_relative_to(priv->pop_menu,bar);
+	priv->selected_obj=obj;
+	gtk_spin_button_set_value(priv->pop_menu_start,s);
+	gtk_spin_button_set_value(priv->pop_menu_end,e);
+	gtk_entry_set_text(priv->pop_menu_subtitle,obj);
+	gtk_entry_set_text(priv->pop_menu_label,describe);
+	gtk_color_chooser_set_rgba(priv->pop_menu_color,color);
+	gtk_popover_set_pointing_to(priv->pop_menu,rectangle);
+	gtk_popover_popup(priv->pop_menu);
+}
+
+void my_main_win_trace_bar_obj_preselected(MyTraceBar *bar,gpointer obj,GdkRectangle *rectangle,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gtk_label_set_text(priv->pop_label_text,obj);
+	gtk_popover_set_relative_to(priv->pop_label,bar);
+	gtk_popover_set_pointing_to(priv->pop_label,rectangle);
+	gtk_popover_popup(priv->pop_label);
+}
+
+void my_main_win_trace_bar_obj_unpreselected(MyTraceBar *bar,gpointer obj,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gtk_popover_popdown(priv->pop_label);
+}
+
+
+void my_main_win_trace_bar_obj_unselected(MyTraceBar *bar,gpointer obj,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gtk_popover_popdown(priv->pop_menu);
+	priv->selected_obj=NULL;
 }
 
 void my_main_win_trace_bar_obj_active_cb(MyTraceBar *bar,gchar *subtitle,MyMainWin *self){
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	priv->active_subtitle=g_list_append(priv->active_subtitle,subtitle);
+}
+
+void my_main_win_trace_bar_obj_range_change(MyTraceBar *bar,gpointer obj,gdouble start,gdouble end,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	if(priv->selected_obj!=obj)return;
+	gtk_spin_button_set_value(priv->pop_menu_start,start);
+	gtk_spin_button_set_value(priv->pop_menu_end,end);
+
 }
 
 gboolean info_bar_close_cb(MyMainWin *self) {
@@ -273,8 +364,11 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	gfloat radio;
 	gint64 dur, pos;
 	GList *list;
-	gdouble text_height;
-	cairo_text_extents_t text_ex;
+	gint text_height,text_width;
+	GdkRGBA fill_color,stroke_color;
+	gchar *font_des_string;
+	PangoLayout *text_layout;
+	PangoLayoutLine *text_line;
 	gint ch = gtk_widget_get_allocated_height(priv->content);
 	gint cw = gtk_widget_get_allocated_width(priv->content);
 
@@ -305,18 +399,33 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 		text_height=(gdouble)0.07*ch;
 		cairo_set_font_size(cr,text_height);
 		cairo_set_line_width(cr,1.);
+		gtk_color_chooser_get_rgba(priv->subtitle_font_fill_color,&fill_color);
+		gtk_color_chooser_get_rgba(priv->subtitle_font_stroke_color,&stroke_color);
+		font_des_string=gtk_font_chooser_get_font(priv->subtitle_font);
+		text_layout=pango_cairo_create_layout(cr);
+		PangoFontDescription *desc = pango_font_description_from_string (font_des_string);
+		pango_layout_set_font_description (text_layout, desc);
+		pango_font_description_free (desc);
+		cairo_set_line_width(cr,1.);
 		while(rows>0){
-			cairo_text_extents(cr,list->data,&text_ex);
-			cairo_move_to(cr,(cw-text_ex.width)/2.0,(gdouble)ch-rows*text_ex.height*1.1);
-			cairo_set_source_rgba(cr,1.,1.,1.,0.7);
-			cairo_show_text(cr,list->data);
-			cairo_move_to(cr,(cw-text_ex.width)/2.0,(gdouble)ch-rows*text_ex.height*1.1);
-			cairo_text_path(cr,list->data);
-			cairo_set_source_rgba(cr,0,0,0,0.7);
+			pango_layout_set_text(text_layout,list->data,-1);
+			pango_layout_get_pixel_size(text_layout,&text_width,&text_height);
+			cairo_move_to(cr,(cw-text_width)/2.0,(gdouble)ch-rows*text_height*1.1);
+			cairo_set_source_rgba(cr,fill_color.red,fill_color.green,fill_color.blue,fill_color.alpha);
+			pango_cairo_update_layout(cr,text_layout);
+			pango_cairo_show_layout(cr,text_layout);
+			//cairo_move_to(cr,(cw-text_width)/2.0,(gdouble)ch-rows*text_height*1.1);
+			cairo_set_source_rgba(cr,stroke_color.red,stroke_color.green,stroke_color.blue,stroke_color.alpha);
+			pango_cairo_layout_path (cr,text_layout);
 			cairo_stroke(cr);
+			//pango_cairo_update_layout(cr,text_layout);
+			//text_line=pango_layout_get_line_readonly(text_layout,pango_layout_get_line_count(text_layout) - 1);
+			//pango_cairo_show_layout_line(cr,text_line);
 			rows--;
 			list=list->next;
 		}
+		g_object_unref (text_layout);
+		g_free(font_des_string);
 		g_list_free(priv->active_subtitle);
 		priv->active_subtitle=NULL;
 	}
@@ -421,6 +530,12 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass, volume_changed_cb);
 	gtk_widget_class_bind_template_callback(klass, my_main_win_take_photo_cb);
 	gtk_widget_class_bind_template_callback(klass, add_subtitle_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_del_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_color_color_set_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_subtitle_activate_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_end_change_value_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_label_activate_cb);
+	gtk_widget_class_bind_template_callback(klass, pop_menu_start_change_value_cb);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -453,7 +568,16 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 			subtitle_color);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
 			subtitle_font);
-
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_font_fill_color);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_font_stroke_color);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			pop_menu_color);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			pop_label);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			pop_label_text);
 }
 ;
 
@@ -505,6 +629,12 @@ static void my_main_win_init(MyMainWin *self) {
 	gtk_box_pack_start(priv->subtitle_trace, priv->trace_bar, TRUE, FALSE, 0);
 	gtk_spin_button_set_value(priv->subtitle_last_time,gtk_spin_button_get_value(priv->default_subtitle_last_time));
 	g_signal_connect(priv->trace_bar,"obj_active",my_main_win_trace_bar_obj_active_cb,self);
+	g_signal_connect(priv->trace_bar,"obj_selected",my_main_win_trace_bar_obj_selected,self);
+	g_signal_connect(priv->trace_bar,"obj_unselected",my_main_win_trace_bar_obj_unselected,self);
+	g_signal_connect(priv->trace_bar,"obj_preselected",my_main_win_trace_bar_obj_preselected,self);
+	g_signal_connect(priv->trace_bar,"obj_unpreselected",my_main_win_trace_bar_obj_unpreselected,self);
+	g_signal_connect(priv->trace_bar,"obj_range_change",my_main_win_trace_bar_obj_range_change,self);
+
 }
 ;
 

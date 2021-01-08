@@ -19,8 +19,11 @@ G_DECLARE_DERIVABLE_TYPE(MyTraceBar,my_trace_bar,MY,TRACE_BAR,GtkDrawingArea)
 typedef struct _MyTraceBarClass{
 	GtkDrawingAreaClass parent_class;
 	void (*obj_active)(MyTraceBar *self,gpointer obj);
-	void (*obj_selected)(MyTraceBar *self,gpointer obj);
-	void (*obj_range_change)(MyTraceBar *self,gpointer obj,gfloat start,gfloat end);
+	void (*obj_selected)(MyTraceBar *self,gpointer obj,GdkRectangle *selected_rectangle);
+	void (*obj_preselected)(MyTraceBar *self,gpointer obj,GdkRectangle *selected_rectangle);
+	void (*obj_unselected)(MyTraceBar *self,gpointer obj);
+	void (*obj_unpreselected)(MyTraceBar *self,gpointer obj);
+	void (*obj_range_change)(MyTraceBar *self,gpointer obj,gdouble start,gdouble end);
 	void (*obj_describe_change)(MyTraceBar *self,gpointer obj,gchar *new_describe);
 	void (*obj_color_change)(MyTraceBar *self,gpointer obj,GdkRGBA *color);
 };
