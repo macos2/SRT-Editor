@@ -13,6 +13,8 @@
 #include <gst/gst.h>
 
 #include "../ui/MyTraceBar.h"
+#include "../subtitle/subtitle.h"
+#include "../subtitle/srt_subtitle.h"
 
 G_BEGIN_DECLS
 #define MY_TYPE_MAIN_WIN my_main_win_get_type()

@@ -13,22 +13,33 @@ G_BEGIN_DECLS
 #define MY_TYPE_SUBTITLE my_subtitle_get_type()
 G_DECLARE_INTERFACE(MySubtitle,my_subtitle,MY,SUBTITLE,GObject);
 
+typedef enum{
+	Subtitle_None=0,
+	Subtitle_Font,
+	Subtitle_Color,
+	Subtitle_Position,
+	Subtitle_Images,
+}SubtitleFormat;
+
 typedef struct _MySubtitleInterface{
 GTypeInterface parent_iface;
-guint64 (*add_subtitle)(MySubTitle *self,gchar *text,gdouble start,gdouble end,va_list ap);
+guint64 (*add_subtitle)(MySubtitle *self,gchar *text,gdouble start,gdouble end,va_list ap);
 void (*del_subtitle)(MySubtitle *self,guint64 index);
 gchar *(*to_string)(MySubtitle *self);
 gboolean (*to_file)(MySubtitle *self,gchar *location);
-void (*load_file)(MySubTitle *self,gchar *location);
-gchar *(*get_subtitle)(MySubtitle *self,guint64 index);
+void (*load_file)(MySubtitle *self,gchar *location);
+gchar *(*get_subtitle)(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,va_list ap);
 guint64 (*get_total_size)(MySubtitle *self);
 };
 
-guint64 my_subtitle_add_subtitle(MySubTitle *self,gchar *text,gdouble start,gdouble end,...);
+guint64 my_subtitle_add_subtitle(MySubtitle *self,gchar *text,gdouble start,gdouble end,...);
 void my_subtitle_del_subtitle(MySubtitle *self,guint64 index);
 gchar* my_subtitle_to_string(MySubtitle *self);
 gboolean my_subtitle_to_file(MySubtitle *self,gchar *location);
-void my_subtitle_load_file(MySubTitle *self,gchar *location);
+void my_subtitle_load_file(MySubtitle *self,gchar *location);
+gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,...);
+guint64 my_subtitle_get_total_size(MySubtitle *self);
+
 void time_to_hh_mm_ss_sss(gdouble time,guint *hour,guint *minute,gdouble *second);
 G_END_DECLS
 

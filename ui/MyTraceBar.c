@@ -333,6 +333,9 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 			g_signal_emit_by_name(self,"obj_preselected",preselected_key,&rectangle,NULL);
 //		}
 		priv->preselected_key=preselected_key;
+		if(priv->selected_key!=NULL){
+		g_signal_emit_by_name(self,"obj_unselected",priv->selected_key,NULL);
+		priv->selected_key = NULL;}
 	}
 
 	if (mouse_in_range != NULL && priv->press_button == 1) {
