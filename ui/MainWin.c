@@ -61,6 +61,8 @@ void my_main_win_open(GtkMenuItem *menuitem, MyMainWin *self) {
 	if (repo == GTK_RESPONSE_OK) {
 		uri = gtk_file_chooser_get_uri(dialog);
 		if (uri != NULL) {
+			gst_element_unlink(priv->src,priv->video_convert);
+			gst_element_unlink(priv->src,priv->audio_convert);
 			g_object_set(priv->src, "uri", uri, NULL);
 			g_free(uri);
 			gst_element_set_state(priv->pipeline, GST_STATE_NULL);
@@ -282,6 +284,151 @@ void pop_menu_start_change_value_cb(GtkSpinButton *button,MyMainWin *self){
 	my_trace_bar_set_obj_range(priv->trace_bar,priv->selected_obj,start,end);
 }
 
+void ex_popover_popup_down_cb(GtkButton *button,GtkPopover *ex_popover){
+	gboolean visual=gtk_widget_is_visible(ex_popover);
+	if(visual){
+		gtk_popover_popdown(ex_popover);
+	}else{
+		gtk_popover_popup(ex_popover);
+	}
+}
+
+void subtitle_color_set_cb(GtkColorButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	GdkRGBA color;
+	gint s=0,e=0,len,ns,ne;
+	guchar r,g,b;
+	gchar *text;
+	GString *temp=g_string_new("");
+	gtk_color_chooser_get_rgba(button,&color);
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&e,"text",&text,NULL);
+	if(s>e){
+		len=s;
+		s=e;
+		e=len;
+	}
+	len=e-s;
+	r=color.red*255;g=color.green*255;b=color.blue*255;
+	temp=g_string_append_len(temp,text,s);
+	g_string_append_printf(temp,"<font color=#%02x%02x%02x>",r,g,b);
+	ns=temp->len;
+	ne=ns+len;
+	temp=g_string_append_len(temp,text+s,len);
+	g_string_append_printf(temp,"</font>");
+	temp=g_string_append(temp,text+e);
+	gtk_entry_set_text(priv->subtitle,temp->str);
+	gtk_editable_select_region(priv->subtitle,ns,ne);
+	g_string_free(temp,TRUE);
+	g_free(text);
+}
+
+void subtitle_bold_cb(GtkButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint s=0,e=0,len,ns,ne;
+	gchar *text;
+	GString *temp=g_string_new("");
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&e,"text",&text,NULL);
+	if(s>e){
+		len=s;
+		s=e;
+		e=len;
+	}
+	len=e-s;
+	temp=g_string_append_len(temp,text,s);
+	g_string_append_printf(temp,"<b>");
+	ns=temp->len;
+	ne=ns+len;
+	temp=g_string_append_len(temp,text+s,len);
+	g_string_append_printf(temp,"</b>");
+	temp=g_string_append(temp,text+e);
+	gtk_entry_set_text(priv->subtitle,temp->str);
+	gtk_editable_select_region(priv->subtitle,ns,ne);
+	g_string_free(temp,TRUE);
+	g_free(text);
+}
+
+void subtitle_italic_cb(GtkButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint s=0,e=0,len,ns,ne;
+	gchar *text;
+	GString *temp=g_string_new("");
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&e,"text",&text,NULL);
+	if(s>e){
+		len=s;
+		s=e;
+		e=len;
+	}
+	len=e-s;
+	temp=g_string_append_len(temp,text,s);
+	g_string_append_printf(temp,"<i>");
+	ns=temp->len;
+	ne=ns+len;
+	temp=g_string_append_len(temp,text+s,len);
+	g_string_append_printf(temp,"</i>");
+	temp=g_string_append(temp,text+e);
+	gtk_entry_set_text(priv->subtitle,temp->str);
+	gtk_editable_select_region(priv->subtitle,ns,ne);
+	g_string_free(temp,TRUE);
+	g_free(text);
+}
+
+void subtitle_under_line_cb(GtkButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint s=0,e=0,len,ns,ne;
+	gchar *text;
+	GString *temp=g_string_new("");
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&e,"text",&text,NULL);
+	if(s>e){
+		len=s;
+		s=e;
+		e=len;
+	}
+	len=e-s;
+	temp=g_string_append_len(temp,text,s);
+	g_string_append_printf(temp,"<u>");
+	ns=temp->len;
+	ne=ns+len;
+	temp=g_string_append_len(temp,text+s,len);
+	g_string_append_printf(temp,"</u>");
+	temp=g_string_append(temp,text+e);
+	gtk_entry_set_text(priv->subtitle,temp->str);
+	gtk_editable_select_region(priv->subtitle,ns,ne);
+	g_string_free(temp,TRUE);
+	g_free(text);
+}
+
+void subtitle_add_br_cb(GtkButton *button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint s=0,e=0,len,ns,ne;
+	gchar *text;
+	GString *temp=g_string_new("");
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&e,"text",&text,NULL);
+	if(s>e){
+		len=s;
+		s=e;
+		e=len;
+	}
+	len=e-s;
+	temp=g_string_append_len(temp,text,s);
+	g_string_append_printf(temp,"</br>");
+	ns=temp->len;
+	ne=ns+len;
+	temp=g_string_append_len(temp,text+s,len);
+	temp=g_string_append(temp,text+e);
+	gtk_entry_set_text(priv->subtitle,temp->str);
+	gtk_editable_select_region(priv->subtitle,ns,ne);
+	g_string_free(temp,TRUE);
+	g_free(text);
+}
+
+void subtitle_add_special_char_cb(GtkButton*button,MyMainWin *self){
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint s,len;
+	gchar *text;
+	g_object_get(priv->subtitle,"cursor-position",&s,"selection-bound",&len,"text",&text,NULL);
+}
+
+
 void my_main_win_trace_bar_obj_selected(MyTraceBar *bar,gpointer obj,GdkRectangle *rectangle,MyMainWin *self){
 	gdouble s,e;
 	GdkRGBA *color;
@@ -290,8 +437,8 @@ void my_main_win_trace_bar_obj_selected(MyTraceBar *bar,gpointer obj,GdkRectangl
 	my_trace_bar_get_obj_range(priv->trace_bar,obj,&s,&e);
 	color=my_trace_bar_get_obj_color(priv->trace_bar,obj);
 	describe=my_trace_bar_get_obj_describe(priv->trace_bar,obj);
-	gtk_popover_set_relative_to(priv->pop_menu,bar);
 	priv->selected_obj=obj;
+	gtk_popover_set_relative_to(priv->pop_menu,bar);
 	gtk_spin_button_set_value(priv->pop_menu_start,s);
 	gtk_spin_button_set_value(priv->pop_menu_end,e);
 	gtk_entry_set_text(priv->pop_menu_subtitle,obj);
@@ -299,6 +446,7 @@ void my_main_win_trace_bar_obj_selected(MyTraceBar *bar,gpointer obj,GdkRectangl
 	gtk_color_chooser_set_rgba(priv->pop_menu_color,color);
 	gtk_popover_set_pointing_to(priv->pop_menu,rectangle);
 	gtk_popover_popup(priv->pop_menu);
+
 }
 
 void my_main_win_trace_bar_obj_preselected(MyTraceBar *bar,gpointer obj,GdkRectangle *rectangle,MyMainWin *self){
@@ -537,6 +685,13 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass, pop_menu_end_change_value_cb);
 	gtk_widget_class_bind_template_callback(klass, pop_menu_label_activate_cb);
 	gtk_widget_class_bind_template_callback(klass, pop_menu_start_change_value_cb);
+	gtk_widget_class_bind_template_callback(klass, ex_popover_popup_down_cb);
+
+	gtk_widget_class_bind_template_callback(klass, subtitle_add_br_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_bold_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_color_set_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_italic_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_under_line_cb);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -601,6 +756,10 @@ static void my_main_win_init(MyMainWin *self) {
 	priv->cur_state = GST_STATE_PAUSED;
 	priv->subtitle_index=0;
 	priv->active_subtitle=NULL;
+	/*									--audio_convert--audiosink
+	* Create gstreamer pipeline src
+	*									--video_convert--videosink
+	*/
 	gst_bin_add_many(priv->pipeline, priv->src, priv->audio_convert,
 			priv->video_convert, priv->videosink, priv->audiosink, priv->volume,
 			NULL);

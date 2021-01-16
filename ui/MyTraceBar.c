@@ -169,7 +169,7 @@ void my_trace_bar_draw_preselected_range(MyTraceBar *self,
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
-	my_trace_bar_draw_range(self, range, cr, x_unit,0.8);
+	my_trace_bar_draw_range(self, range, cr, x_unit,1.0);
 	cairo_set_source_rgb(cr, 1., 1., 1.);
 	cairo_set_line_width(cr, 4.);
 	if (abs(priv->motion_x - range->start * x_unit) < 3) {
@@ -191,7 +191,7 @@ void my_trace_bar_draw_selected_range(MyTraceBar *self, MyTraceBarRange *range,
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
 	cairo_save(cr);
-	my_trace_bar_draw_range(self, range, cr, x_unit,0.8);
+	my_trace_bar_draw_range(self, range, cr, x_unit,1.0);
 
 	cairo_set_line_width(cr, 2.);
 	priv->adj_range_max = FALSE;
@@ -315,7 +315,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		while (1) {
 			if (mouse_in_range->data != preselected_key){
 				range = g_hash_table_lookup(priv->table, mouse_in_range->data);
-				my_trace_bar_draw_range(self, range, cr, unit,1.0);
+				my_trace_bar_draw_range(self, range, cr, unit,0.5);
 			}
 			if (mouse_in_range->next != NULL)
 				mouse_in_range = mouse_in_range->next;
@@ -324,39 +324,28 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		}
 		range = g_hash_table_lookup(priv->table,  preselected_key);
 		my_trace_bar_draw_preselected_range(self, range, cr, unit);
-//		if(priv->preselected_key!=preselected_key){
-//			g_signal_emit_by_name(self,"obj_unpreselected",priv->preselected_key);
 			rectangle.height=36;
 			rectangle.width=(gint)(range->end - range->start) * unit;
 			rectangle.x= (gint)(range->start - priv->min) * unit;
 			rectangle.y=26;
-			g_signal_emit_by_name(self,"obj_preselected",preselected_key,&rectangle,NULL);
-//		}
+			if(priv->preselected_key!=preselected_key)g_signal_emit_by_name(self,"obj_preselected",preselected_key,&rectangle,NULL);
 		priv->preselected_key=preselected_key;
-		if(priv->selected_key!=NULL){
-		g_signal_emit_by_name(self,"obj_unselected",priv->selected_key,NULL);
-		priv->selected_key = NULL;}
 	}
 
 	if (mouse_in_range != NULL && priv->press_button == 1) {
-		if (priv->selected_key == NULL) {
-			//there are no key range have been selected beforce,detect the select key by the select index
-			while (1) {
-				if (priv->select_index == 0) //the key have been selected
-					break;
-				priv->select_index--;
-				if (mouse_in_range->next != NULL)
-					mouse_in_range = mouse_in_range->next;
-			}
-			selected_key = mouse_in_range->data;
-		}else{
-			selected_key=priv->selected_key;
+		selected_key=priv->selected_key;
+		if(priv->selected_key==NULL&&priv->preselected_key!=NULL){
+			selected_key=priv->preselected_key;
+		}else if(priv->preselected_key!=priv->selected_key){
+				//g_signal_emit_by_name(self,"obj_unselected",priv->selected_key,NULL);
+				priv->selected_key = NULL;
+				selected_key=priv->preselected_key;
 		}
 		mouse_in_range = g_list_first(mouse_in_range);
 		while (1) { //draw the key range that haven't been selected.
 			if (selected_key != mouse_in_range->data) {
 				range = g_hash_table_lookup(priv->table, mouse_in_range->data);
-				my_trace_bar_draw_range(self, range, cr, unit,1.0);
+				my_trace_bar_draw_range(self, range, cr, unit,0.5);
 			}
 			if (mouse_in_range->next == NULL)
 				break;
