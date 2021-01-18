@@ -587,13 +587,15 @@ void my_main_win_info_bar_show_info(MyMainWin *self, guchar timeout, gchar *fmt,
 gpointer subtitle_normal_color[][4] = { { "red", 255, 0, 0 }, { "green", 0, 255,
 		0 }, { "blue", 0, 0, 255 }, { "yellow", 255, 255, 0 }, { "purple", 255,
 		0, 255 }, { "cyan", 0, 255, 255 }, { "white", 255, 255, 255 },
+		{NULL,0,0,0},
 NULL, };
 
-GList* subtitle_parse_markup(gchar *str, MyMainWin *self) {
+GList* subtitle_parse_markup(gchar *str, MyMainWin *self,cairo_t *cr) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gint s, e, p = 0, c;
+	gint s=0, e=0, p = 0;
 	guint i;
-	gchar *temp;
+	gchar *temp,*c;
+	gint r,g,b;
 	GdkRGBA color;
 	GMatchInfo *info;
 	GList *ParseResult = NULL;
@@ -604,74 +606,72 @@ GList* subtitle_parse_markup(gchar *str, MyMainWin *self) {
 	while (g_match_info_matches(info)) {
 		temp = g_match_info_fetch(info, 0);
 		g_match_info_fetch_pos(info, 0, &s, &e);
-		if (g_strstr_len(temp, -1, "i") != NULL) {
-			if (g_strstr_len(temp, -1, "</") == NULL) {
-				g_queue_push_tail(format_stack,
-						subtitle_describe_copy_format(des));
-				des->format |= Subtitle_Format_Itatic;
-			} else {
-				subtitle_describe_free(des);
-				des = g_queue_pop_tail(format_stack);
-			}
-		}
-		if (g_strstr_len(temp, -1, "b") != NULL) {
-			if (g_strstr_len(temp, -1, "</") == NULL) {
-				g_queue_push_tail(format_stack,
-						subtitle_describe_copy_format(des));
-				des->format |= Subtitle_Format_Bold;
-			} else {
-				subtitle_describe_free(des);
-				des = g_queue_pop_tail(format_stack);
-			}
-		}
-		if (g_strstr_len(temp, -1, "u") != NULL) {
-			if (g_strstr_len(temp, -1, "</") == NULL) {
-				g_queue_push_tail(format_stack,
-						subtitle_describe_copy_format(des));
-				des->format |= Subtitle_Format_Underline;
-			} else {
-				subtitle_describe_free(des);
-				des = g_queue_pop_tail(format_stack);
-			}
-		}
-		if (g_strstr_len(temp, -1, "font") != NULL
-				&& g_strstr_len(temp, -1, "color=") != NULL) {
-			if (g_strstr_len(temp, -1, "</") == NULL) {
-				g_queue_push_tail(format_stack,
-						subtitle_describe_copy_format(des));
-				des->format |= Subtitle_Format_Special_Color;
-				i = 0;
-				while (subtitle_normal_color[i] != NULL) {
-					if (g_strstr_len(temp, -1,
-							subtitle_normal_color[i][0])!=NULL) {
-						color.red = (guint)subtitle_normal_color[i][1];
-						color.green = (guint)subtitle_normal_color[i][2];
-						color.blue = (guint)subtitle_normal_color[i][3];
-						break;
-					}
-					i++;
-				}
-				if (subtitle_normal_color[i] == NULL) {
-					c = g_strstr_len(temp, -1, "#");
-					sscanf(c + 1, "%02x,%02x,%02x", &color.red, &color.green,
-							&color.blue);
-				}
-			} else {
-				subtitle_describe_free(des);
-				des = g_queue_pop_tail(format_stack);
-			}
-		}
-
 		if (s - p != 0) {
 			temp_des=subtitle_describe_copy_format(des);
 			temp_des->text=g_strndup(str+p,s-p);
 			ParseResult=g_list_append(ParseResult,temp_des);
 		}
 		p=e;
+		if(g_strstr_len(temp, -1, "</") != NULL){
+			//end of the markup
+			subtitle_describe_free(des);
+			des = g_queue_pop_tail(format_stack);
+		}else{
+
+			//save the format
+			g_queue_push_tail(format_stack,
+					subtitle_describe_copy_format(des));
+			//Itatic
+			if (g_strstr_len(temp, -1, "i") != NULL) {
+					des->format |= Subtitle_Format_Itatic;
+			}
+			//Bold
+			if (g_strstr_len(temp, -1, "b") != NULL&&g_strstr_len(temp, -1, "font") == NULL) {
+					des->format |= Subtitle_Format_Bold;
+			}
+			//Under Line
+			if (g_strstr_len(temp, -1, "u") != NULL) {
+					des->format |= Subtitle_Format_Underline;
+			}
+			//Special Color
+			if (g_strstr_len(temp, -1, "font") != NULL
+							&& g_strstr_len(temp, -1, "color=") != NULL) {
+							des->format |= Subtitle_Format_Special_Color;
+							i = 0;
+							while (subtitle_normal_color[i][0] != NULL) {
+								if (g_strstr_len(temp, -1,
+										subtitle_normal_color[i][0])!=NULL) {
+									des->color.red = (guchar)subtitle_normal_color[i][1]/255.;
+									des->color.green = (guchar)subtitle_normal_color[i][2]/255.;
+									des->color.blue = (guchar)subtitle_normal_color[i][3]/255.;
+									break;
+								}
+								i++;
+							}
+							if (subtitle_normal_color[i][0] == NULL) {
+								c = g_strstr_len(temp, -1, "#");
+								c++;
+								sscanf(c, "%02x%02x%02x", &r,&g,&b);
+//								sscanf(c, "%02x", &r);
+//								c+=2;
+//								sscanf(c, "%02x", &g);
+//								c+=2;
+//								sscanf(c, "%02x", &b);
+								des->color.red=r/255.;
+								des->color.green=g/255.;
+								des->color.blue=b/255.;
+							}
+						}
+		}
 		g_print("get %s\n", temp);
 		g_free(temp);
 		g_match_info_next(info, NULL);
 	}
+	e=strlen(str);//there are no xml markup;
+	temp_des=subtitle_describe_copy_format(des);
+	temp_des->text=g_strndup(str+p,e-p);
+	ParseResult=g_list_append(ParseResult,temp_des);
+
 	g_queue_free_full(format_stack,subtitle_describe_free);
 	subtitle_describe_free(des);
 	return g_list_first(ParseResult);
@@ -679,15 +679,17 @@ GList* subtitle_parse_markup(gchar *str, MyMainWin *self) {
 
 gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gint w, h, rows;
+	gint w, h, n_subtitle,rows;
+	gchar *br=NULL,*pbr=NULL;
 	gfloat radio;
 	gint64 dur, pos;
-	GList *list;
+	GList *list,*list_row=NULL;
 	gint text_height, text_width;
 	GdkRGBA fill_color, stroke_color;
 	gchar *font_des_string;
 	PangoLayout *text_layout;
 	PangoLayoutLine *text_line;
+	SubtitleDescribe *des;
 	gint ch = gtk_widget_get_allocated_height(priv->content);
 	gint cw = gtk_widget_get_allocated_width(priv->content);
 
@@ -714,7 +716,7 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	//draw the subtitle
 	if (priv->active_subtitle != NULL) {
 		list = priv->active_subtitle;
-		rows = g_list_length(priv->active_subtitle);
+		n_subtitle = g_list_length(priv->active_subtitle);
 		text_height = (gdouble) 0.07 * ch;
 		cairo_set_font_size(cr, text_height);
 		cairo_set_line_width(cr, 1.);
@@ -728,29 +730,52 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 		pango_layout_set_font_description(text_layout, desc);
 		pango_font_description_free(desc);
 		cairo_set_line_width(cr, 1.);
-		while (rows > 0) {
-			subtitle_parse_markup(list->data, self);
-			pango_layout_set_text(text_layout, list->data, -1);
+		//split the subtitle by </br> and see how many rows to draw at all.
+		while (n_subtitle > 0) {
+			rows=0;
+			pbr=list->data;
+			while(1){
+				br=g_strstr_len(pbr,-1,"</br>");
+				if(br==NULL)break;
+				rows++;
+				list_row=g_list_append(list_row,g_strndup(pbr,br-pbr));
+				pbr=br+5;
+			}
+			list_row=g_list_append(list_row,g_strdup(pbr));
+			list = list->next;
+			n_subtitle--;
+		}
+		//draw the subtitle by rows
+		n_subtitle=g_list_length(list_row);
+		list_row=g_list_first(list_row);
+		while (n_subtitle > 0) {//draw subtitle
+
+			list=subtitle_parse_markup(list_row->data, self,cr);
+			while(1){
+			des=list->data
+			pango_layout_set_text(text_layout, des->text, -1);
 			pango_layout_get_pixel_size(text_layout, &text_width, &text_height);
+			//pango_layout_set_attributes(pan)
 			cairo_move_to(cr, (cw - text_width) / 2.0,
-					(gdouble) ch - rows * text_height * 1.1);
+					(gdouble) ch - n_subtitle * text_height * 1.1);
 			cairo_set_source_rgba(cr, fill_color.red, fill_color.green,
 					fill_color.blue, fill_color.alpha);
 			pango_cairo_update_layout(cr, text_layout);
 			pango_cairo_show_layout(cr, text_layout);
-			//cairo_move_to(cr,(cw-text_width)/2.0,(gdouble)ch-rows*text_height*1.1);
 			cairo_set_source_rgba(cr, stroke_color.red, stroke_color.green,
 					stroke_color.blue, stroke_color.alpha);
 			pango_cairo_layout_path(cr, text_layout);
 			cairo_stroke(cr);
-			//pango_cairo_update_layout(cr,text_layout);
-			//text_line=pango_layout_get_line_readonly(text_layout,pango_layout_get_line_count(text_layout) - 1);
-			//pango_cairo_show_layout_line(cr,text_line);
-			rows--;
-			list = list->next;
+			if(list->next==NULL)break;
+			list=list->next;
+			}
+			g_list_free_full(list,subtitle_describe_free);
+			if(list_row->next!=NULL)list_row = list_row->next;
+			n_subtitle--;
 		}
 		g_object_unref(text_layout);
 		g_free(font_des_string);
+		g_list_free_full(list_row,g_free);
 		g_list_free(priv->active_subtitle);
 		priv->active_subtitle = NULL;
 	}
