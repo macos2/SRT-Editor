@@ -14,11 +14,14 @@ G_BEGIN_DECLS
 G_DECLARE_INTERFACE(MySubtitle,my_subtitle,MY,SUBTITLE,GObject);
 
 typedef enum{
-	Subtitle_None=0,
-	Subtitle_Font,
-	Subtitle_Color,
-	Subtitle_Position,
-	Subtitle_Images,
+	Subtitle_Format_None = 0,
+	Subtitle_Format_Bold = 0x01<<0,
+	Subtitle_Format_Itatic = 0x01 << 1,
+	Subtitle_Format_Underline = 0x01 << 2,
+	Subtitle_Format_Special_Color = 0x01 << 3,
+	Subtitle_Format_Special_Font=0x01 << 4,
+	Subtitle_Format_Position=0x01 << 5,
+	Subtitle_Format_Images=0x01<<6,
 }SubtitleFormat;
 
 typedef struct _MySubtitleInterface{

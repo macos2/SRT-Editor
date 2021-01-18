@@ -108,9 +108,9 @@ guint64 my_srt_subtitle_add_subtitle(MySrtSubtitle *self, gchar *text,
 		format = va_arg(ap, gint);
 		if (format == -1 || format == 0)
 			break;
-		if (format == Subtitle_Color)
+		if (format == Subtitle_Format_Special_Color)
 			color = va_arg(ap, GdkRGBA*);
-		if (format == Subtitle_Font)
+		if (format == Subtitle_Format_Special_Font)
 			font = va_arg(ap, gchar*);
 	} while (1);
 	SRTSubtitleData *data = srt_subtitle_data_new(text, font, color, start,
@@ -251,17 +251,17 @@ gchar* my_srt_subtitle_get_subtitle(MySrtSubtitle *self, guint64 index,
 		return NULL;
 	do {
 		format = va_arg(ap, SubtitleFormat);
-		if (format == Subtitle_None)
+		if (format == Subtitle_Format_None)
 			break;
 		switch (format) {
-		case Subtitle_Color:
+		case Subtitle_Format_Special_Color:
 			color = va_arg(ap, GdkRGBA*);
 			color->alpha = data->color.alpha;
 			color->blue = data->color.blue;
 			color->green = data->color.green;
 			color->red = data->color.red;
 			break;
-		case Subtitle_Font:
+		case Subtitle_Format_Special_Font:
 			font = va_arg(ap, gchar**);
 			*font = data->font;
 			break;
