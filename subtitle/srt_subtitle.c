@@ -127,32 +127,36 @@ void my_srt_subtitle_del_subtitle(MySrtSubtitle *self, guint64 index) {
 
 void my_srt_subtitle_to_file(MySrtSubtitle *self, gchar *location) {
 	gchar *contents;
-	if(g_access(location,F_OK)==0)g_unlink(location);
-	contents=my_srt_subtitle_to_string(self);
-	g_file_set_contents(location,contents,-1,NULL);
+	if (g_access(location, F_OK) == 0)
+		g_unlink(location);
+	contents = my_srt_subtitle_to_string(self);
+	g_file_set_contents(location, contents, -1, NULL);
 	g_free(contents);
 }
 
 guint64 to_string_index;
-void my_srt_subtitle_data_to_string(gpointer  key,SRTSubtitleData *data,GString *string){
-	guint hour,minute;
+void my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
+		GString *string) {
+	guint hour, minute;
 	gdouble second;
-	g_string_append_printf(string, "%d\n",to_string_index);
+	g_string_append_printf(string, "%d\n", to_string_index);
 	to_string_index++;
-	time_to_hh_mm_ss_sss(data->start,&hour,&minute,&second);
-	g_string_append_printf(string, "%02d:%02d:%0.3lf --> ", hour,minute,second);
-	time_to_hh_mm_ss_sss(data->end,&hour,&minute,&second);
-	g_string_append_printf(string, "%02d:%02d:%0.3lf\n%s\n\n", hour,minute,second,data->subtitle);
+	time_to_hh_mm_ss_sss(data->start, &hour, &minute, &second);
+	g_string_append_printf(string, "%02d:%02d:%0.3lf --> ", hour, minute,
+			second);
+	time_to_hh_mm_ss_sss(data->end, &hour, &minute, &second);
+	g_string_append_printf(string, "%02d:%02d:%0.3lf\n%s\n\n", hour, minute,
+			second, data->subtitle);
 }
 
 gchar* my_srt_subtitle_to_string(MySrtSubtitle *self) {
 	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
 	GString *string = g_string_new("");
-	to_string_index=0;
+	to_string_index = 0;
 	gchar *result;
-	g_tree_foreach(priv->tree, my_srt_subtitle_data_to_string,string);
-	result=string->str;
-	g_string_free(string,FALSE);
+	g_tree_foreach(priv->tree, my_srt_subtitle_data_to_string, string);
+	result = string->str;
+	g_string_free(string, FALSE);
 	return result;
 }
 
@@ -246,7 +250,7 @@ gchar* my_srt_subtitle_get_subtitle(MySrtSubtitle *self, guint64 index,
 	SubtitleFormat format;
 	GdkRGBA *color;
 	gchar *font;
-	data = g_tree_lookup(priv->tree,GINT_TO_POINTER(index));
+	data = g_tree_lookup(priv->tree, GINT_TO_POINTER(index));
 	if (data == NULL)
 		return NULL;
 	do {
@@ -275,4 +279,151 @@ gchar* my_srt_subtitle_get_subtitle(MySrtSubtitle *self, guint64 index,
 guint64 my_srt_subtitle_get_total_size(MySrtSubtitle *self) {
 	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
 	return priv->count;
+}
+
+MySrtSubtitle* my_srt_subtitle_new() {
+	MySrtSubtitle *sub = g_object_new(MY_TYPE_SRT_SUBTITLE, NULL);
+	return sub;
+}
+
+PangoLayout* my_subtitle_parse_srt_text_line(cairo_t *cr, GdkRGBA *color,
+		PangoFontFamily *font_family, gsize font_size, gchar *subtitle_text_line) {
+	GRegex *start_markup = g_regex_new("<[^>]+>", G_REGEX_OPTIMIZE, 0, NULL);
+	GMatchInfo *info;
+	gchar *temp, *temp2, *temp3;
+	GQueue *queue = g_queue_new();
+	SubtitleFormat format = Subtitle_Format_None;
+	gint r, g, b, s, e, len, p = 0;
+	if (font_size < PANGO_SCALE)
+		font_size = font_size * PANGO_SCALE;
+	PangoLayout *layout = pango_cairo_create_layout(cr);
+	PangoAttrColor *foreground_color = pango_attr_foreground_new(
+			65535 * color->red, 65535 * color->green, 65535 * color->blue);
+	PangoAttribute *foreground_alpha = pango_attr_foreground_alpha_new(
+			65535 * color->alpha);
+	PangoAttribute *font = pango_attr_family_new(pango_font_family_get_name(font_family));
+	PangoAttribute *size = pango_attr_size_new(font_size);
+	PangoAttrList *attr_list = pango_attr_list_new();
+	PangoAttribute *attr;
+	pango_attr_list_insert(attr_list, font);
+	pango_attr_list_insert(attr_list, size);
+	pango_attr_list_insert(attr_list, foreground_alpha);
+	pango_layout_set_attributes(layout, attr_list);
+	GString *subtitle=g_string_new("");
+
+	g_regex_match(start_markup, subtitle_text_line, 0, &info);
+	while (g_match_info_matches(info)) {
+		temp = g_match_info_fetch(info, 0);
+		g_match_info_fetch_pos(info, 0, &s, &e);
+		remove_white_space(temp);
+		temp2 = g_utf8_strdown(temp, -1);
+		g_free(temp);
+		temp = temp2;
+		len = s - p;
+		if (len > 0) {
+			s=subtitle->len;
+			if (format & Subtitle_Format_Bold){
+				attr=pango_attr_weight_new(PANGO_WEIGHT_BOLD);
+				attr->start_index=s;
+				attr->end_index=s+len;
+				pango_attr_list_insert(attr_list, attr);
+			}
+
+			if (format & Subtitle_Format_Itatic){
+				attr=pango_attr_style_new(PANGO_STYLE_ITALIC);
+				attr->start_index=s;
+				attr->end_index=s+len;
+				pango_attr_list_insert(attr_list, attr);
+			}
+
+			if (format & Subtitle_Format_Underline)
+			{
+				attr=pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+				attr->start_index=s;
+				attr->end_index=s+len;
+				pango_attr_list_insert(attr_list, attr);
+			}
+			foreground_color->attr.start_index=s;
+			foreground_color->attr.end_index=s+len;
+			pango_attr_list_insert(attr_list, pango_attribute_copy(foreground_color));
+			g_string_append_len(subtitle,subtitle_text_line + p,len);
+		}
+		p = e;
+		if (g_strstr_len(temp, -1, "</")) {
+			format = GPOINTER_TO_UINT(g_queue_pop_tail(queue));
+			if((format&Subtitle_Format_Special_Color)==0){
+				foreground_color->color.red = color->red * 65535;
+				foreground_color->color.green = color->green * 65535;
+				foreground_color->color.blue = color->blue * 65535;
+			}
+		} else {
+			g_queue_push_tail(queue, GUINT_TO_POINTER(format));
+			temp2 = g_strstr_len(temp, -1, "<fontcolor=");
+			if (temp2 != NULL) {
+				temp2 = g_strstr_len(temp, -1, "=");
+				format|=Subtitle_Format_Special_Color;
+				temp2++;
+				if (*temp2 == '"')
+					temp2++;
+				temp3 = temp2;
+				while (*temp3 != '"' && *temp3 != '>')
+					temp3++;
+				len = temp3 - temp2;
+				temp3 = g_strndup(temp2, len);
+				pango_color_parse(&foreground_color->color, temp3);
+				g_free(temp3);
+			}
+			if (g_strstr_len(temp, -1, "<i>")) {
+				format |= Subtitle_Format_Itatic;
+			};
+			if (g_strstr_len(temp, -1, "<b>")) {
+				format |= Subtitle_Format_Bold;
+			};
+			if (g_strstr_len(temp, -1, "<u>")) {
+				format |= Subtitle_Format_Underline;
+			};
+		}
+		g_free(temp);
+		g_match_info_next(info, NULL);
+	}
+
+	len = g_utf8_strlen(subtitle_text_line,-1) - p;
+	if (len > 0) {
+		s=subtitle->len;
+
+		if (format & Subtitle_Format_Bold){
+			attr=pango_attr_weight_new(PANGO_WEIGHT_BOLD);
+			attr->start_index=s;
+			attr->end_index=s+len;
+			pango_attr_list_insert(attr_list, attr);
+		}
+
+		if (format & Subtitle_Format_Itatic){
+			attr=pango_attr_style_new(PANGO_STYLE_ITALIC);
+			attr->start_index=s;
+			attr->end_index=s+len;
+			pango_attr_list_insert(attr_list, attr);
+		}
+
+		if (format & Subtitle_Format_Underline)
+		{
+			attr=pango_attr_underline_new(PANGO_UNDERLINE_SINGLE);
+			attr->start_index=s;
+			attr->end_index=s+len;
+			pango_attr_list_insert(attr_list, attr);
+		}
+		foreground_color->attr.start_index=s;
+		foreground_color->attr.end_index=s+len;
+		pango_attr_list_insert(attr_list, foreground_color);
+		g_string_append_len(subtitle,subtitle_text_line + p,len);
+	}
+	font->end_index=subtitle->len;
+	size->end_index=subtitle->len;
+	pango_layout_set_text(layout,subtitle->str,subtitle->len);
+	g_queue_free(queue);
+	pango_attr_list_unref(attr_list);
+	g_string_free(subtitle,TRUE);
+	g_match_info_free(info);
+	g_regex_unref(start_markup);
+	return layout;
 }

@@ -90,3 +90,17 @@ void time_to_hh_mm_ss_sss(gdouble time,guint *hour,guint *minute,gdouble *second
 *minute=(guint)(time-*hour*3600)/60;
 *second=(time-*hour*3600.-*minute/60.);
 }
+
+void remove_white_space(gchar *text){
+	gchar *p,*w;
+	p=text;
+	w=text;
+	while(*p!='\0'){
+		if(*p!=' '){
+			*w=*p;
+			w++;
+		}
+		p++;
+	}
+	*w='\0';
+}

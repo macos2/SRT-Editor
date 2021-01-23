@@ -23,7 +23,7 @@ typedef struct {
 	GtkLabel *info_message;
 	guint info_timeout;
 	GtkToggleButton *mul_photo;
-	GtkCheckButton *photo_save_as_video_dir;
+	GtkCheckButton *photo_save_as_video_dir, *auto_pause;
 	GtkFileChooserButton *photo_save_as_special_dir;
 	GtkSpinButton *default_subtitle_last_time, *subtitle_last_time;
 	GtkEntry *subtitle;
@@ -35,47 +35,32 @@ typedef struct {
 	guint64 subtitle_index;
 	GList *active_subtitle;
 	GtkFontButton *subtitle_font;
-	gpointer *selected_obj;
+	gpointer *selected_index;
 	GtkPopover *pop_label, *ex_popover;
 	GtkLabel *pop_label_text;
 	GtkButton *pop_menu_ex_menu, *ex_menu;
 	GtkStack *char_stack;
 	GRegex *markup;
+	GtkListStore *subtitle_list;
+	GtkTreeView *subtitle_treeview;
 } MyMainWinPrivate;
 
-typedef struct {
-	SubtitleFormat format;
-	GdkRGBA color;
-	gchar *text;
-} SubtitleDescribe;
+enum {
+	col_index,
+	col_start,
+	col_start_text,
+	col_end,
+	col_end_text,
+	col_text,
+	col_active,
+	col_preview,
+} SubtitleListCol;
 
-void subtitle_describe_free(SubtitleDescribe *des) {
-	g_free(des->text);
-	g_free(des);
-}
-SubtitleDescribe* subtitle_describe_new(GdkRGBA *color, SubtitleFormat format,
-		gchar *text) {
-	SubtitleDescribe *des = calloc(1, sizeof(SubtitleDescribe));
-	des->format = format;
-	if (color != NULL) {
-		des->color.alpha = color->alpha;
-		des->color.blue = color->blue;
-		des->color.green = color->green;
-		des->color.red = color->red;
-	}
-	des->text = g_strdup(text);
-	return des;
-}
-SubtitleDescribe* subtitle_describe_copy_format(SubtitleDescribe *des) {
-	SubtitleDescribe *des_copy = calloc(1, sizeof(SubtitleDescribe));
-	des_copy->format = des->format;
-	des_copy->color.alpha = des->color.alpha;
-	des_copy->color.blue = des->color.blue;
-	des_copy->color.green = des->color.green;
-	des_copy->color.red = des->color.red;
-	des_copy->text = NULL;
-	return des_copy;
-}
+typedef struct {
+	guint64 index;
+	GtkTreeRowReference *ref;
+	gchar *subtitle;
+}SubtitleDictData;
 
 G_DEFINE_TYPE_WITH_CODE(MyMainWin, my_main_win, GTK_TYPE_WINDOW,
 		G_ADD_PRIVATE(MyMainWin));
@@ -268,33 +253,127 @@ void my_main_win_take_photo_cb(GtkButton *button, MyMainWin *self) {
 	}
 }
 
-void add_subtitle_cb(GtkButton *button, MyMainWin *self) {
-	gchar *subtitle, *describe;
-	gdouble current_pos, last_time;
+guint64 my_main_win_add_subtitle(MyMainWin *self,gdouble start ,gdouble end,gchar *subtitle){
+	gint w,h;
+	gchar *s,*p,*temp;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GdkRGBA color;
-	subtitle = g_strdup(gtk_entry_get_text(priv->subtitle));
-	gtk_entry_set_text(priv->subtitle, "\0");
-	current_pos = my_trace_bar_get_value(priv->trace_bar);
-	last_time = gtk_spin_button_get_value(priv->subtitle_last_time);
-	gtk_spin_button_set_value(priv->subtitle_last_time,
-			gtk_spin_button_get_value(priv->default_subtitle_last_time));
-	gtk_color_chooser_get_rgba(priv->subtitle_color, &color);
-	describe = g_strdup_printf("%d", priv->subtitle_index);
-	my_trace_bar_add_obj_range(priv->trace_bar, subtitle, current_pos,
-			current_pos + last_time, describe, &color);
-	g_hash_table_insert(priv->subtitle_table,
-			GINT_TO_POINTER(priv->subtitle_index), subtitle);
-	priv->subtitle_index++;
+	gchar *describe=g_strdup_printf("%d",priv->subtitle_index);
+	GtkTreeIter iter;
+	GdkRGBA color,font_color;
+	color.red=0.2;
+	color.green=1.0;
+	color.blue=0.5;
+	color.alpha=0.9;
+
+	//prepare the preview of the subtitle.
+	PangoLayout *layout;
+	cairo_t *cr;
+	cairo_surface_t *surf=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,240,24);
+	cr=cairo_create(surf);
+	gtk_color_chooser_get_rgba(priv->subtitle_font_fill_color,&font_color);
+	s=subtitle;
+	p=g_strstr_len(s,-1,"</br>");
+	cairo_set_line_width(cr,0.1);
+	while(p!=NULL){
+		temp=g_strndup(s,p-s);
+		layout=my_subtitle_parse_srt_text_line(cr,&font_color,gtk_font_chooser_get_font_family(priv->subtitle_font),12,temp);
+		pango_layout_get_pixel_size(layout,&w,&h);
+		cairo_move_to(cr,(240-w)/2.,0);
+		pango_cairo_show_layout(cr,layout);
+		cairo_move_to(cr,(240-w)/2.,0);
+		pango_cairo_layout_path(cr,layout);
+		cairo_set_source_rgb(cr,0,0,0);
+		cairo_stroke(cr);
+		g_object_unref(layout);
+		cairo_translate(cr,0,h);
+		g_free(temp);
+		p+=5;
+		s=p;
+		p=g_strstr_len(s,-1,"</br>");
+	}
+	temp=g_strdup(s);
+	layout=my_subtitle_parse_srt_text_line(cr,&font_color,gtk_font_chooser_get_font_family(priv->subtitle_font),12,temp);
+	pango_layout_get_pixel_size(layout,&w,&h);
+	cairo_move_to(cr,(240-w)/2.,0);
+	pango_cairo_show_layout(cr,layout);
+	cairo_move_to(cr,(240-w)/2.,0);
+	pango_cairo_layout_path(cr,layout);
+	cairo_set_source_rgb(cr,0,0,0);
+	cairo_stroke(cr);
+	g_object_unref(layout);
+	g_free(temp);
+	cairo_destroy(cr);
+
+	//add to the trace bar
+	my_trace_bar_add_obj_range(priv->trace_bar, GUINT_TO_POINTER(priv->subtitle_index), start,
+			end, describe, &color);
 	g_free(describe);
 
+	//add to the subtitle_list for the treeview
+	gtk_list_store_append(priv->subtitle_list,&iter);
+	gtk_list_store_set(priv->subtitle_list,&iter,col_index,priv->subtitle_index,col_start,start,col_end,end,col_text,subtitle,-1);
+	s=g_strdup_printf("%.3f",start);
+	p=g_strdup_printf("%.3f",end);
+	GdkPixbuf *pixbuf=gdk_pixbuf_get_from_surface(surf,0,0,240,24);
+	gtk_list_store_set(priv->subtitle_list,&iter,col_start_text,s,col_end_text,p,col_preview,pixbuf,-1);
+	g_free(s);
+	g_free(p);
+	cairo_surface_destroy(surf);
+	gdk_pixbuf_unref(pixbuf);
+	//add to table
+	SubtitleDictData *data=malloc(sizeof(SubtitleDictData));
+	data->index=priv->subtitle_index;
+	data->subtitle=g_strdup(subtitle);
+	GtkTreePath *path=gtk_tree_model_get_path(priv->subtitle_list,&iter);
+	data->ref=gtk_tree_row_reference_new(priv->subtitle_list,path);
+	gtk_tree_path_free(path);
+	g_hash_table_insert(priv->subtitle_table,GUINT_TO_POINTER(priv->subtitle_index),data);
+	priv->subtitle_index++;
+	return 0;
+}
+
+void add_subtitle_cb(GtkButton *button, MyMainWin *self) {
+	gdouble current_pos, last_time;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	current_pos = my_trace_bar_get_value(priv->trace_bar);
+	last_time = gtk_spin_button_get_value(priv->subtitle_last_time);
+	my_main_win_add_subtitle(self, current_pos,current_pos + last_time,gtk_entry_get_text(priv->subtitle));
+
+	//reset to default state.
+	gtk_entry_set_text(priv->subtitle, "\0");
+	gtk_spin_button_set_value(priv->subtitle_last_time,
+			gtk_spin_button_get_value(priv->default_subtitle_last_time));
+	gst_element_set_state(priv->pipeline, priv->cur_state);
+}
+
+void subtitle_auto_pause(GtkEntry *entry, gchar *new_text, gint new_text_length,
+		gpointer position, MyMainWin *self) {
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gboolean auto_pause = gtk_toggle_button_get_active(priv->auto_pause);
+	if (auto_pause == TRUE)
+		gst_element_set_state(priv->pipeline, GST_STATE_PAUSED);
 }
 
 void pop_menu_del_cb(GtkButton *button, MyMainWin *self) {
+	GtkTreeIter iter;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	my_trace_bar_del_obj_range(priv->trace_bar, priv->selected_obj);
-	g_free(priv->selected_obj);
-	priv->selected_obj = NULL;
+	my_trace_bar_del_obj_range(priv->trace_bar, priv->selected_index);
+	SubtitleDictData *data=g_hash_table_lookup(priv->subtitle_table,priv->selected_index);
+	//remove from subtitle_list in treeview
+	GtkTreePath *path=gtk_tree_row_reference_get_path(data->ref);
+	if(gtk_tree_model_get_iter(priv->subtitle_list,&iter,path)){
+	gtk_list_store_remove(priv->subtitle_list,&iter);
+	}
+	gtk_tree_path_free(path);
+	gtk_tree_row_reference_free(data->ref);
+	//remove from trace bar
+	my_trace_bar_del_obj_range(priv->trace_bar,priv->selected_index);
+	//remove from subtitle table
+	g_hash_table_remove(priv->subtitle_table,priv->selected_index);
+	//release the data from memory
+	g_free(data->subtitle);
+	g_free(data);
+	priv->selected_index = NULL;
 	gtk_popover_popdown(priv->pop_menu);
 }
 
@@ -302,37 +381,40 @@ void pop_menu_color_color_set_cb(GtkColorButton *widget, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	GdkRGBA color;
 	gtk_color_chooser_get_rgba(priv->pop_menu_color, &color);
-	my_trace_bar_set_obj_color(priv->trace_bar, priv->selected_obj, &color);
+	my_trace_bar_set_obj_color(priv->trace_bar, priv->selected_index, &color);
 }
 
 void pop_menu_subtitle_activate_cb(GtkEntry *entry, MyMainWin *self) {
-	g_print("changed subtitle");
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	SubtitleDictData *data=g_hash_table_lookup(priv->subtitle_table,priv->selected_index);
+	if(data->subtitle!=NULL)g_free(data->subtitle);
+	data->subtitle=g_strdup(gtk_entry_get_text(entry));
 
 }
 
 void pop_menu_end_change_value_cb(GtkSpinButton *button, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	gdouble end, start;
-	my_trace_bar_get_obj_range(priv->trace_bar, priv->selected_obj, &start,
+	my_trace_bar_get_obj_range(priv->trace_bar, priv->selected_index, &start,
 			&end);
 	end = gtk_spin_button_get_value(priv->pop_menu_end);
-	my_trace_bar_set_obj_range(priv->trace_bar, priv->selected_obj, start, end);
+	my_trace_bar_set_obj_range(priv->trace_bar, priv->selected_index, start, end);
 }
 
 void pop_menu_label_activate_cb(GtkEntry *entry, MyMainWin *self) {
 	gchar *text;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	text = gtk_entry_get_text(priv->pop_menu_label);
-	my_trace_bar_set_obj_describe(priv->trace_bar, priv->selected_obj, text);
+	my_trace_bar_set_obj_describe(priv->trace_bar,priv->selected_index, text);
 }
 
 void pop_menu_start_change_value_cb(GtkSpinButton *button, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	gdouble end, start;
-	my_trace_bar_get_obj_range(priv->trace_bar, priv->selected_obj, &start,
+	my_trace_bar_get_obj_range(priv->trace_bar, priv->selected_index, &start,
 			&end);
 	start = gtk_spin_button_get_value(priv->pop_menu_start);
-	my_trace_bar_set_obj_range(priv->trace_bar, priv->selected_obj, start, end);
+	my_trace_bar_set_obj_range(priv->trace_bar, priv->selected_index, start, end);
 }
 
 void ex_popover_popup_down_cb(GtkButton *button, MyMainWin *self) {
@@ -352,35 +434,38 @@ void ex_popover_popup_down_cb(GtkButton *button, MyMainWin *self) {
 
 void subtitle_color_set_cb(GtkColorButton *button, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GdkRGBA color;
 	gint s = 0, e = 0, len, ns, ne;
-	guchar r, g, b;
 	gchar *text;
+	GdkRGBA color;
 	GString *temp = g_string_new("");
 	GtkEntry *entry = gtk_popover_get_relative_to(priv->ex_popover);
-	gtk_color_chooser_get_rgba(button, &color);
-	g_object_get(entry, "cursor-position", &s, "selection-bound", &e, "text",
-			&text, NULL);
+	gtk_color_chooser_get_rgba(priv->subtitle_color, &color);
+	gtk_editable_get_selection_bounds(entry, &s, &e);
 	if (s > e) {
 		len = s;
 		s = e;
 		e = len;
 	}
 	len = e - s;
-	r = color.red * 255;
-	g = color.green * 255;
-	b = color.blue * 255;
-	temp = g_string_append_len(temp, text, s);
+	text = gtk_editable_get_chars(entry, 0, s);
+	temp = g_string_append(temp, text);
+	g_free(text);
+	guint r = color.red * 255;
+	guint g = color.green * 255;
+	guint b = color.blue * 255;
 	g_string_append_printf(temp, "<font color=\"#%02x%02x%02x\">", r, g, b);
-	ns = temp->len;
-	ne = ns + len;
-	temp = g_string_append_len(temp, text + s, len);
+	ns = g_utf8_strlen(temp->str, -1);
+	text = gtk_editable_get_chars(entry, s, e);
+	temp = g_string_append(temp, text);
+	g_free(text);
+	ne = g_utf8_strlen(temp->str, -1);
 	g_string_append_printf(temp, "</font>");
-	temp = g_string_append(temp, text + e);
+	text = gtk_editable_get_chars(entry, e, -1);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	gtk_entry_set_text(entry, temp->str);
 	gtk_editable_select_region(entry, ns, ne);
 	g_string_free(temp, TRUE);
-	g_free(text);
 }
 
 void subtitle_bold_cb(GtkButton *button, MyMainWin *self) {
@@ -389,25 +474,29 @@ void subtitle_bold_cb(GtkButton *button, MyMainWin *self) {
 	gchar *text;
 	GString *temp = g_string_new("");
 	GtkEntry *entry = gtk_popover_get_relative_to(priv->ex_popover);
-	g_object_get(entry, "cursor-position", &s, "selection-bound", &e, "text",
-			&text, NULL);
+	gtk_editable_get_selection_bounds(entry, &s, &e);
 	if (s > e) {
 		len = s;
 		s = e;
 		e = len;
 	}
 	len = e - s;
-	temp = g_string_append_len(temp, text, s);
+	text = gtk_editable_get_chars(entry, 0, s);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	g_string_append_printf(temp, "<b>");
-	ns = temp->len;
-	ne = ns + len;
-	temp = g_string_append_len(temp, text + s, len);
+	ns = g_utf8_strlen(temp->str, -1);
+	text = gtk_editable_get_chars(entry, s, e);
+	temp = g_string_append(temp, text);
+	g_free(text);
+	ne = g_utf8_strlen(temp->str, -1);
 	g_string_append_printf(temp, "</b>");
-	temp = g_string_append(temp, text + e);
+	text = gtk_editable_get_chars(entry, e, -1);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	gtk_entry_set_text(entry, temp->str);
 	gtk_editable_select_region(entry, ns, ne);
 	g_string_free(temp, TRUE);
-	g_free(text);
 }
 
 void subtitle_italic_cb(GtkButton *button, MyMainWin *self) {
@@ -416,25 +505,29 @@ void subtitle_italic_cb(GtkButton *button, MyMainWin *self) {
 	gchar *text;
 	GString *temp = g_string_new("");
 	GtkEntry *entry = gtk_popover_get_relative_to(priv->ex_popover);
-	g_object_get(entry, "cursor-position", &s, "selection-bound", &e, "text",
-			&text, NULL);
+	gtk_editable_get_selection_bounds(entry, &s, &e);
 	if (s > e) {
 		len = s;
 		s = e;
 		e = len;
 	}
 	len = e - s;
-	temp = g_string_append_len(temp, text, s);
+	text = gtk_editable_get_chars(entry, 0, s);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	g_string_append_printf(temp, "<i>");
-	ns = temp->len;
-	ne = ns + len;
-	temp = g_string_append_len(temp, text + s, len);
+	ns = g_utf8_strlen(temp->str, -1);
+	text = gtk_editable_get_chars(entry, s, e);
+	temp = g_string_append(temp, text);
+	g_free(text);
+	ne = g_utf8_strlen(temp->str, -1);
 	g_string_append_printf(temp, "</i>");
-	temp = g_string_append(temp, text + e);
+	text = gtk_editable_get_chars(entry, e, -1);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	gtk_entry_set_text(entry, temp->str);
 	gtk_editable_select_region(entry, ns, ne);
 	g_string_free(temp, TRUE);
-	g_free(text);
 }
 
 void subtitle_under_line_cb(GtkButton *button, MyMainWin *self) {
@@ -443,25 +536,29 @@ void subtitle_under_line_cb(GtkButton *button, MyMainWin *self) {
 	gchar *text;
 	GString *temp = g_string_new("");
 	GtkEntry *entry = gtk_popover_get_relative_to(priv->ex_popover);
-	g_object_get(entry, "cursor-position", &s, "selection-bound", &e, "text",
-			&text, NULL);
+	gtk_editable_get_selection_bounds(entry, &s, &e);
 	if (s > e) {
 		len = s;
 		s = e;
 		e = len;
 	}
 	len = e - s;
-	temp = g_string_append_len(temp, text, s);
+	text = gtk_editable_get_chars(entry, 0, s);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	g_string_append_printf(temp, "<u>");
-	ns = temp->len;
-	ne = ns + len;
-	temp = g_string_append_len(temp, text + s, len);
+	ns = g_utf8_strlen(temp->str, -1);
+	text = gtk_editable_get_chars(entry, s, e);
+	temp = g_string_append(temp, text);
+	g_free(text);
+	ne = g_utf8_strlen(temp->str, -1);
 	g_string_append_printf(temp, "</u>");
-	temp = g_string_append(temp, text + e);
+	text = gtk_editable_get_chars(entry, e, -1);
+	temp = g_string_append(temp, text);
+	g_free(text);
 	gtk_entry_set_text(entry, temp->str);
 	gtk_editable_select_region(entry, ns, ne);
 	g_string_free(temp, TRUE);
-	g_free(text);
 }
 
 void subtitle_add_br_cb(GtkButton *button, MyMainWin *self) {
@@ -500,20 +597,43 @@ void subtitle_add_special_char_cb(GtkButton *button, MyMainWin *self) {
 	gtk_editable_set_position(entry, s);
 }
 
-void my_main_win_trace_bar_obj_selected(MyTraceBar *bar, gpointer obj,
+void subtitle_list_set_active(GtkCellRendererToggle *cell_renderer, gchar *path,
+		MyMainWin *self) {
+g_print("set active\n");
+}
+
+void subtitle_list_set_start(GtkCellRendererText *renderer, gchar *path,
+		gchar *new_text, MyMainWin *self) {
+	g_print("set start\n");
+}
+
+void subtitle_list_set_end(GtkCellRendererText *renderer, gchar *path,
+		gchar *new_text, MyMainWin *self) {
+	g_print("set end\n");
+}
+
+void subtitle_list_set_text(GtkCellRendererText *renderer, gchar *path,
+		gchar *new_text, MyMainWin *self) {
+	g_print("set text\n");
+}
+
+void my_main_win_trace_bar_obj_selected(MyTraceBar *bar, gpointer index,
 		GdkRectangle *rectangle, MyMainWin *self) {
 	gdouble s, e;
 	GdkRGBA *color;
 	gchar *describe;
+	gchar *subtitle;
+	SubtitleDictData *data;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	my_trace_bar_get_obj_range(priv->trace_bar, obj, &s, &e);
-	color = my_trace_bar_get_obj_color(priv->trace_bar, obj);
-	describe = my_trace_bar_get_obj_describe(priv->trace_bar, obj);
-	priv->selected_obj = obj;
+	data=g_hash_table_lookup(priv->subtitle_table,index);
+	my_trace_bar_get_obj_range(priv->trace_bar, index, &s, &e);
+	color = my_trace_bar_get_obj_color(priv->trace_bar, index);
+	describe = my_trace_bar_get_obj_describe(priv->trace_bar, index);
+	priv->selected_index = index;
 	gtk_popover_set_relative_to(priv->pop_menu, bar);
 	gtk_spin_button_set_value(priv->pop_menu_start, s);
 	gtk_spin_button_set_value(priv->pop_menu_end, e);
-	gtk_entry_set_text(priv->pop_menu_subtitle, obj);
+	gtk_entry_set_text(priv->pop_menu_subtitle, data->subtitle);
 	gtk_entry_set_text(priv->pop_menu_label, describe);
 	gtk_color_chooser_set_rgba(priv->pop_menu_color, color);
 	gtk_popover_set_pointing_to(priv->pop_menu, rectangle);
@@ -521,10 +641,10 @@ void my_main_win_trace_bar_obj_selected(MyTraceBar *bar, gpointer obj,
 
 }
 
-void my_main_win_trace_bar_obj_preselected(MyTraceBar *bar, gpointer obj,
+void my_main_win_trace_bar_obj_preselected(MyTraceBar *bar, gpointer index,
 		GdkRectangle *rectangle, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gtk_label_set_text(priv->pop_label_text, obj);
+	//gtk_label_set_text(priv->pop_label_text, index);
 	gtk_popover_set_relative_to(priv->pop_label, bar);
 	gtk_popover_set_pointing_to(priv->pop_label, rectangle);
 	gtk_popover_popup(priv->pop_label);
@@ -540,19 +660,19 @@ void my_main_win_trace_bar_obj_unselected(MyTraceBar *bar, gpointer obj,
 		MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	gtk_popover_popdown(priv->pop_menu);
-	priv->selected_obj = NULL;
+	priv->selected_index = NULL;
 }
 
-void my_main_win_trace_bar_obj_active_cb(MyTraceBar *bar, gchar *subtitle,
+void my_main_win_trace_bar_obj_active_cb(MyTraceBar *bar, gchar *subtitle_index,
 		MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	priv->active_subtitle = g_list_append(priv->active_subtitle, subtitle);
+	priv->active_subtitle = g_list_append(priv->active_subtitle, subtitle_index);
 }
 
-void my_main_win_trace_bar_obj_range_change(MyTraceBar *bar, gpointer obj,
+void my_main_win_trace_bar_obj_range_change(MyTraceBar *bar, gpointer index,
 		gdouble start, gdouble end, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	if (priv->selected_obj != obj)
+	if (priv->selected_index != index)
 		return;
 	gtk_spin_button_set_value(priv->pop_menu_start, start);
 	gtk_spin_button_set_value(priv->pop_menu_end, end);
@@ -586,110 +706,29 @@ void my_main_win_info_bar_show_info(MyMainWin *self, guchar timeout, gchar *fmt,
 
 gpointer subtitle_normal_color[][4] = { { "red", 255, 0, 0 }, { "green", 0, 255,
 		0 }, { "blue", 0, 0, 255 }, { "yellow", 255, 255, 0 }, { "purple", 255,
-		0, 255 }, { "cyan", 0, 255, 255 }, { "white", 255, 255, 255 },
-		{NULL,0,0,0},
+		0, 255 }, { "cyan", 0, 255, 255 }, { "white", 255, 255, 255 }, { NULL,
+		0, 0, 0 },
 NULL, };
 
-GList* subtitle_parse_markup(gchar *str, MyMainWin *self,cairo_t *cr) {
-	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gint s=0, e=0, p = 0;
-	guint i;
-	gchar *temp,*c;
-	gint r,g,b;
-	GdkRGBA color;
-	GMatchInfo *info;
-	GList *ParseResult = NULL;
-	SubtitleDescribe *des  = subtitle_describe_new(NULL,
-			Subtitle_Format_None, NULL),*temp_des;
-	GQueue *format_stack = g_queue_new();
-	g_regex_match(priv->markup, str, 0, &info);
-	while (g_match_info_matches(info)) {
-		temp = g_match_info_fetch(info, 0);
-		g_match_info_fetch_pos(info, 0, &s, &e);
-		if (s - p != 0) {
-			temp_des=subtitle_describe_copy_format(des);
-			temp_des->text=g_strndup(str+p,s-p);
-			ParseResult=g_list_append(ParseResult,temp_des);
-		}
-		p=e;
-		if(g_strstr_len(temp, -1, "</") != NULL){
-			//end of the markup
-			subtitle_describe_free(des);
-			des = g_queue_pop_tail(format_stack);
-		}else{
-
-			//save the format
-			g_queue_push_tail(format_stack,
-					subtitle_describe_copy_format(des));
-			//Itatic
-			if (g_strstr_len(temp, -1, "i") != NULL) {
-					des->format |= Subtitle_Format_Itatic;
-			}
-			//Bold
-			if (g_strstr_len(temp, -1, "b") != NULL&&g_strstr_len(temp, -1, "font") == NULL) {
-					des->format |= Subtitle_Format_Bold;
-			}
-			//Under Line
-			if (g_strstr_len(temp, -1, "u") != NULL) {
-					des->format |= Subtitle_Format_Underline;
-			}
-			//Special Color
-			if (g_strstr_len(temp, -1, "font") != NULL
-							&& g_strstr_len(temp, -1, "color=") != NULL) {
-							des->format |= Subtitle_Format_Special_Color;
-							i = 0;
-							while (subtitle_normal_color[i][0] != NULL) {
-								if (g_strstr_len(temp, -1,
-										subtitle_normal_color[i][0])!=NULL) {
-									des->color.red = (guchar)subtitle_normal_color[i][1]/255.;
-									des->color.green = (guchar)subtitle_normal_color[i][2]/255.;
-									des->color.blue = (guchar)subtitle_normal_color[i][3]/255.;
-									break;
-								}
-								i++;
-							}
-							if (subtitle_normal_color[i][0] == NULL) {
-								c = g_strstr_len(temp, -1, "#");
-								c++;
-								sscanf(c, "%02x%02x%02x", &r,&g,&b);
-//								sscanf(c, "%02x", &r);
-//								c+=2;
-//								sscanf(c, "%02x", &g);
-//								c+=2;
-//								sscanf(c, "%02x", &b);
-								des->color.red=r/255.;
-								des->color.green=g/255.;
-								des->color.blue=b/255.;
-							}
-						}
-		}
-		g_print("get %s\n", temp);
-		g_free(temp);
-		g_match_info_next(info, NULL);
-	}
-	e=strlen(str);//there are no xml markup;
-	temp_des=subtitle_describe_copy_format(des);
-	temp_des->text=g_strndup(str+p,e-p);
-	ParseResult=g_list_append(ParseResult,temp_des);
-
-	g_queue_free_full(format_stack,subtitle_describe_free);
-	subtitle_describe_free(des);
-	return g_list_first(ParseResult);
+void print_font_describe(PangoLayout *layout) {
+	gchar *des;
+	PangoFontDescription *desc = pango_layout_get_font_description(layout);
+	des = pango_font_description_to_string(desc);
+	g_print("%s \ttext:%s\n", des, pango_layout_get_text(layout));
+	g_free(des);
 }
 
 gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gint w, h, n_subtitle,rows;
-	gchar *br=NULL,*pbr=NULL;
+	gint w, h, n_subtitle, rows;
+	gchar *br = NULL, *pbr = NULL;
 	gfloat radio;
 	gint64 dur, pos;
-	GList *list,*list_row=NULL;
-	gint text_height, text_width;
-	GdkRGBA fill_color, stroke_color;
-	gchar *font_des_string;
+	GList *list, *list_row = NULL;
+	gint text_height, text_width, text_num, text_x, text_y;
+	GdkRGBA stroke_color, fill_color;
 	PangoLayout *text_layout;
-	PangoLayoutLine *text_line;
-	SubtitleDescribe *des;
+	SubtitleDictData *data;
 	gint ch = gtk_widget_get_allocated_height(priv->content);
 	gint cw = gtk_widget_get_allocated_width(priv->content);
 
@@ -717,65 +756,62 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	if (priv->active_subtitle != NULL) {
 		list = priv->active_subtitle;
 		n_subtitle = g_list_length(priv->active_subtitle);
-		text_height = (gdouble) 0.07 * ch;
-		cairo_set_font_size(cr, text_height);
 		cairo_set_line_width(cr, 1.);
-		gtk_color_chooser_get_rgba(priv->subtitle_font_fill_color, &fill_color);
 		gtk_color_chooser_get_rgba(priv->subtitle_font_stroke_color,
 				&stroke_color);
-		font_des_string = gtk_font_chooser_get_font(priv->subtitle_font);
-		text_layout = pango_cairo_create_layout(cr);
-		PangoFontDescription *desc = pango_font_description_from_string(
-				font_des_string);
-		pango_layout_set_font_description(text_layout, desc);
-		pango_font_description_free(desc);
+		gtk_color_chooser_get_rgba(priv->subtitle_font_fill_color, &fill_color);
+
 		cairo_set_line_width(cr, 1.);
 		//split the subtitle by </br> and see how many rows to draw at all.
 		while (n_subtitle > 0) {
-			rows=0;
-			pbr=list->data;
-			while(1){
-				br=g_strstr_len(pbr,-1,"</br>");
-				if(br==NULL)break;
+			rows = 0;
+			data=g_hash_table_lookup(priv->subtitle_table,list->data);
+			pbr = data->subtitle;
+			while (1) {
+				br = g_strstr_len(pbr, -1, "</br>");
+				if (br == NULL)
+					break;
 				rows++;
-				list_row=g_list_append(list_row,g_strndup(pbr,br-pbr));
-				pbr=br+5;
+				list_row = g_list_append(list_row, g_strndup(pbr, br - pbr));
+				pbr = br + 5;
 			}
-			list_row=g_list_append(list_row,g_strdup(pbr));
+			list_row = g_list_append(list_row, g_strdup(pbr));
 			list = list->next;
 			n_subtitle--;
 		}
-		//draw the subtitle by rows
-		n_subtitle=g_list_length(list_row);
-		list_row=g_list_first(list_row);
-		while (n_subtitle > 0) {//draw subtitle
+		n_subtitle = g_list_length(list_row);
+		list_row = g_list_first(list_row);
 
-			list=subtitle_parse_markup(list_row->data, self,cr);
-			while(1){
-			des=list->data
-			pango_layout_set_text(text_layout, des->text, -1);
+		//draw all subtitles
+		while (n_subtitle > 0) {
+			text_layout = my_subtitle_parse_srt_text_line(cr, &fill_color,
+					gtk_font_chooser_get_font_family(priv->subtitle_font),
+					gtk_font_chooser_get_font_size(priv->subtitle_font),
+					list_row->data);
 			pango_layout_get_pixel_size(text_layout, &text_width, &text_height);
-			//pango_layout_set_attributes(pan)
-			cairo_move_to(cr, (cw - text_width) / 2.0,
-					(gdouble) ch - n_subtitle * text_height * 1.1);
-			cairo_set_source_rgba(cr, fill_color.red, fill_color.green,
-					fill_color.blue, fill_color.alpha);
+			cairo_save(cr);
+			text_x = (cw - text_width) / 2.0;
+			text_y = (gdouble) ch - n_subtitle * text_height;
+			cairo_move_to(cr, text_x, text_y);
 			pango_cairo_update_layout(cr, text_layout);
 			pango_cairo_show_layout(cr, text_layout);
+			pango_cairo_show_layout(cr, text_layout);
+			cairo_move_to(cr, text_x, text_y);
+			pango_cairo_update_layout(cr, text_layout);
 			cairo_set_source_rgba(cr, stroke_color.red, stroke_color.green,
 					stroke_color.blue, stroke_color.alpha);
 			pango_cairo_layout_path(cr, text_layout);
 			cairo_stroke(cr);
-			if(list->next==NULL)break;
-			list=list->next;
-			}
-			g_list_free_full(list,subtitle_describe_free);
-			if(list_row->next!=NULL)list_row = list_row->next;
+			g_object_unref(text_layout);
+			cairo_restore(cr);
+			//ready for next subtitle row.
+			if (list_row->next != NULL)
+				list_row = list_row->next;
+			else
+				break;
 			n_subtitle--;
 		}
-		g_object_unref(text_layout);
-		g_free(font_des_string);
-		g_list_free_full(list_row,g_free);
+		g_list_free_full(list_row, g_free);
 		g_list_free(priv->active_subtitle);
 		priv->active_subtitle = NULL;
 	}
@@ -789,7 +825,6 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 	if (gst_element_query(priv->pipeline, position)) {
 		gst_query_parse_position(position, NULL, &pos);
 	};
-	//g_object_set(priv->progress,"lower",0,"upper",dur/1000000,"value",pos/1000000,NULL);
 	gtk_range_set_range(priv->video_progress, 0, dur / 1000000);
 	gtk_range_set_value(priv->video_progress, pos / 1000000);
 	g_object_set(priv->trace_bar, "max", dur / 1000000000., "min", 0., "value",
@@ -981,6 +1016,12 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass, subtitle_color_set_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_italic_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_under_line_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_auto_pause);
+
+	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_active);
+	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_start);
+	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_end);
+	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_text);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -1027,7 +1068,11 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
 			pop_menu_ex_menu);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, char_stack);
-
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin, auto_pause);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_treeview);
 }
 ;
 
@@ -1049,7 +1094,7 @@ static void my_main_win_init(MyMainWin *self) {
 	priv->pipeline = gst_pipeline_new("line");
 	priv->pixbuf = NULL;
 	priv->cur_state = GST_STATE_PAUSED;
-	priv->subtitle_index = 0;
+	priv->subtitle_index = 1;
 	priv->active_subtitle = NULL;
 	/*									--audio_convert--audiosink
 	 * Create gstreamer pipeline src

@@ -9,6 +9,9 @@
 #define SUBTITLE_SUBTITLE_H_
 #include <glib.h>
 #include <glib-object.h>
+#include <cairo.h>
+#include <pango/pango.h>
+#include "gtk/gtk.h"
 G_BEGIN_DECLS
 #define MY_TYPE_SUBTITLE my_subtitle_get_type()
 G_DECLARE_INTERFACE(MySubtitle,my_subtitle,MY,SUBTITLE,GObject);
@@ -44,6 +47,7 @@ gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gd
 guint64 my_subtitle_get_total_size(MySubtitle *self);
 
 void time_to_hh_mm_ss_sss(gdouble time,guint *hour,guint *minute,gdouble *second);
+void remove_white_space(gchar *text);
 G_END_DECLS
 
 #endif /* SUBTITLE_SUBTITLE_H_ */
