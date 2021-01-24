@@ -68,6 +68,7 @@
           <object class="GtkLabel" id="pop_label_text">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="halign">center</property>
             <property name="label" translatable="yes">label</property>
             <property name="justify">center</property>
           </object>
@@ -82,6 +83,8 @@
           <object class="GtkDrawingArea" id="pop_label_preview">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
+            <property name="halign">center</property>
+            <signal name="draw" handler="pop_label_preview_draw_callback" object="MyMainWin" swapped="no"/>
           </object>
           <packing>
             <property name="expand">True</property>
@@ -107,11 +110,11 @@
       <!-- column-name index -->
       <column type="guint64"/>
       <!-- column-name start -->
-      <column type="guint64"/>
+      <column type="gdouble"/>
       <!-- column-name start_text -->
       <column type="gchararray"/>
       <!-- column-name end -->
-      <column type="guint64"/>
+      <column type="gdouble"/>
       <!-- column-name end_text -->
       <column type="gchararray"/>
       <!-- column-name text -->
@@ -1073,14 +1076,10 @@ audio-volume-medium-symbolic</property>
                 <child>
                   <object class="GtkTreeViewColumn" id="col_preview">
                     <property name="resizable">True</property>
-                    <property name="min_width">180</property>
+                    <property name="sizing">autosize</property>
                     <property name="title" translatable="yes">Preview</property>
                     <child>
-                      <object class="GtkCellRendererPixbuf">
-                        <property name="cell_background">#FEFFBB</property>
-                        <property name="width">240</property>
-                        <property name="height">24</property>
-                      </object>
+                      <object class="GtkCellRendererPixbuf"/>
                       <attributes>
                         <attribute name="pixbuf">7</attribute>
                       </attributes>
@@ -1299,9 +1298,10 @@ It will be saved to home/photo directory</property>
                         <property name="margin_right">5</property>
                         <property name="margin_top">5</property>
                         <property name="margin_bottom">5</property>
-                        <property name="font">Sans 12</property>
+                        <property name="font">Sans 30</property>
                         <property name="language">zh-cn</property>
                         <property name="preview_text">Oh , My God !!!</property>
+                        <property name="show_style">False</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -1355,7 +1355,7 @@ It will be saved to home/photo directory</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
                             <property name="use_alpha">True</property>
-                            <property name="rgba">rgba(0,0,0,0.9)</property>
+                            <property name="rgba">rgb(197,197,197)</property>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>

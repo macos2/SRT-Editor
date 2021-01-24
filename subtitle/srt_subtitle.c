@@ -387,7 +387,7 @@ PangoLayout* my_subtitle_parse_srt_text_line(cairo_t *cr, GdkRGBA *color,
 		g_match_info_next(info, NULL);
 	}
 
-	len = g_utf8_strlen(subtitle_text_line,-1) - p;
+	len = strlen(subtitle_text_line) - p;
 	if (len > 0) {
 		s=subtitle->len;
 
