@@ -23,5 +23,4 @@ G_END_DECLS
 MySrtSubtitle *my_srt_subtitle_new();
 PangoLayout* my_subtitle_parse_srt_text_line(cairo_t *cr, GdkRGBA *color,PangoFontFamily *font_family, gsize font_size, gchar *subtitle_text_line);
 
-
 #endif /* SUBTITLE_SRT_SUBTITLE_H_ */

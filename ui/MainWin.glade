@@ -553,7 +553,7 @@ audio-volume-medium-symbolic</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                         <property name="relief">none</property>
-                        <signal name="clicked" handler="gtk_popover_popup" object="pop_subtitle_list" swapped="yes"/>
+                        <signal name="clicked" handler="subtitle_list_popup_down_cb" object="MyMainWin" swapped="no"/>
                         <child>
                           <object class="GtkImage">
                             <property name="visible">True</property>
@@ -995,9 +995,9 @@ audio-volume-medium-symbolic</property>
           <object class="GtkScrolledWindow">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="margin_left">10</property>
-            <property name="margin_right">10</property>
-            <property name="margin_top">10</property>
+            <property name="margin_left">5</property>
+            <property name="margin_right">5</property>
+            <property name="margin_top">5</property>
             <property name="shadow_type">in</property>
             <child>
               <object class="GtkTreeView" id="subtitle_treeview">
@@ -1015,8 +1015,11 @@ audio-volume-medium-symbolic</property>
                 <child>
                   <object class="GtkTreeViewColumn" id="col_active">
                     <property name="title" translatable="yes">Active</property>
+                    <property name="reorderable">True</property>
+                    <property name="sort_column_id">6</property>
                     <child>
                       <object class="GtkCellRendererToggle">
+                        <property name="radio">True</property>
                         <signal name="toggled" handler="subtitle_list_set_active" object="MyMainWin" swapped="no"/>
                       </object>
                       <attributes>
@@ -1030,6 +1033,7 @@ audio-volume-medium-symbolic</property>
                     <property name="min_width">80</property>
                     <property name="title" translatable="yes">Start</property>
                     <property name="reorderable">True</property>
+                    <property name="sort_column_id">1</property>
                     <child>
                       <object class="GtkCellRendererSpin">
                         <property name="editable">True</property>
@@ -1048,6 +1052,7 @@ audio-volume-medium-symbolic</property>
                     <property name="min_width">80</property>
                     <property name="title" translatable="yes">End</property>
                     <property name="reorderable">True</property>
+                    <property name="sort_column_id">3</property>
                     <child>
                       <object class="GtkCellRendererSpin">
                         <property name="editable">True</property>
@@ -1066,6 +1071,7 @@ audio-volume-medium-symbolic</property>
                     <property name="resizable">True</property>
                     <property name="sizing">autosize</property>
                     <property name="title" translatable="yes">Preview</property>
+                    <property name="reorderable">True</property>
                     <child>
                       <object class="GtkCellRendererPixbuf"/>
                       <attributes>
@@ -1078,6 +1084,8 @@ audio-volume-medium-symbolic</property>
                   <object class="GtkTreeViewColumn" id="col_text">
                     <property name="resizable">True</property>
                     <property name="title" translatable="yes">Text</property>
+                    <property name="reorderable">True</property>
+                    <property name="sort_column_id">5</property>
                     <child>
                       <object class="GtkCellRendererText">
                         <property name="editable">True</property>
@@ -1099,24 +1107,159 @@ audio-volume-medium-symbolic</property>
           </packing>
         </child>
         <child>
-          <object class="GtkButton">
+          <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="receives_default">True</property>
-            <property name="relief">none</property>
-            <signal name="clicked" handler="gtk_popover_popdown" object="pop_subtitle_list" swapped="yes"/>
+            <property name="can_focus">False</property>
+            <property name="margin_left">5</property>
+            <property name="margin_right">5</property>
+            <property name="spacing">5</property>
             <child>
-              <object class="GtkImage">
+              <object class="GtkEntry">
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
-                <property name="icon_name">pan-down-symbolic</property>
+                <property name="can_focus">True</property>
               </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Find ↑</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="relief">none</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="pack_type">end</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="label" translatable="yes">Find ↓</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="relief">none</property>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">2</property>
+              </packing>
             </child>
           </object>
           <packing>
             <property name="expand">False</property>
             <property name="fill">True</property>
             <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButtonBox">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="margin_left">5</property>
+            <property name="margin_right">5</property>
+            <property name="margin_bottom">5</property>
+            <property name="spacing">5</property>
+            <property name="layout_style">start</property>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Delete Selection</property>
+                <property name="relief">none</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">edit-delete-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Edit Selection</property>
+                <property name="relief">none</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">document-edit-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Import Subtitle File</property>
+                <property name="relief">none</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">document-open-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="pack_type">end</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="tooltip_text" translatable="yes">Save to File</property>
+                <property name="relief">none</property>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="icon_name">document-save-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="pack_type">end</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
           </packing>
         </child>
       </object>
@@ -1286,7 +1429,7 @@ It will be saved to home/photo directory</property>
                         <property name="margin_right">5</property>
                         <property name="margin_top">5</property>
                         <property name="margin_bottom">5</property>
-                        <property name="font">Sans 30</property>
+                        <property name="font">Sans 12</property>
                         <property name="language">zh-cn</property>
                         <property name="preview_text">Oh , My God !!!</property>
                         <property name="show_style">False</property>

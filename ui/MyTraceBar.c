@@ -23,7 +23,6 @@ typedef struct {
 	gpointer preselected_key;
 	gboolean adj_range_max;
 	gboolean adj_range_min;
-	gboolean actived_notify;
 } MyTraceBarPrivate;
 
 typedef enum {
@@ -90,7 +89,14 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 		}
 		;
 		g_object_notify(self, "value");
-		priv->actived_notify=FALSE;
+		gpointer key;
+		MyTraceBarRange *range;
+		GHashTableIter iter;
+		g_hash_table_iter_init(&iter,priv->table);
+		while(g_hash_table_iter_next(&iter,&key,&range)){
+		if ((range->start <= priv->value) && (priv->value <= range->end))
+			g_signal_emit_by_name(self, "obj_active", key, NULL);
+		}
 		break;
 	default:
 		//G_OBJECT_WARN_INVALID_PROPERTY_ID(self,property_id,pspec);
@@ -281,7 +287,6 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 
 	cairo_save(cr);
 	g_hash_table_iter_init(&iter, priv->table);
-	//cairo_scale(cr, alloc.width / (priv->max - priv->min), 1.0);
 	unit = alloc.width / (priv->max - priv->min);
 	while (g_hash_table_iter_next(&iter, &key, &range)) {
 		cairo_new_path (cr);
@@ -293,11 +298,8 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 			cairo_new_path (cr);
 			my_trace_bar_draw_range(self, range, cr, unit,1.0);
 		}
-		if ((range->start < priv->value) && (priv->value < range->end))
-			if(priv->actived_notify==FALSE)g_signal_emit_by_name(self, "obj_active", key, NULL);
 	}
 	cairo_new_path (cr);
-	priv->actived_notify=TRUE;
 	if (mouse_in_range != NULL && priv->press_button != 1) {
 		mouse_in_range = g_list_first(mouse_in_range);
 		i = priv->select_index;
@@ -509,7 +511,6 @@ static void my_trace_bar_init(MyTraceBar *self) {
 	priv->min = 0.;
 	priv->value = 0.;
 	priv->describe = g_strdup("\0");
-	priv->actived_notify=FALSE;
 	gtk_widget_set_size_request(self, 100, 64);
 	gtk_widget_add_events(self,
 			GDK_BUTTON_PRESS_MASK | GDK_POINTER_MOTION_MASK
@@ -618,4 +619,18 @@ void my_trace_bar_set_obj_color(MyTraceBar *bar,gpointer obj,const GdkRGBA *colo
 	}
 }
 
+GList *my_trace_bar_get_active_object(MyTraceBar *bar){
+	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
+	GList *list=NULL;
+	gpointer key;
+	MyTraceBarRange *range;
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter,priv->table);
+	while(g_hash_table_iter_next(&iter,&key,&range)){
+	if ((range->start <= priv->value) && (priv->value <= range->end))
+		list=g_list_append(list,key);
+	}
+	list=g_list_append(list,NULL);
+	return g_list_first(list);
+}
 
