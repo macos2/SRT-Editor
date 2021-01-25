@@ -7,6 +7,7 @@
 
 #ifndef SUBTITLE_SRT_SUBTITLE_H_
 #define SUBTITLE_SRT_SUBTITLE_H_
+#include <unistd.h>
 #include "glib.h"
 #include "glib-object.h"
 #include "subtitle.h"

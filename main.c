@@ -4,7 +4,7 @@
  *  Created on: 2019年11月21日
  *      Author: tom
  */
-
+#include <stdlib.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
 
