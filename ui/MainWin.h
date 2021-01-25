@@ -8,6 +8,7 @@
 #ifndef MAINWIN_H_
 #define MAINWIN_H_
 
+#include <unistd.h>
 #include <cairo.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
