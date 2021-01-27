@@ -1107,7 +1107,13 @@ void char_stack_init(MyMainWin *self) {
 			for (k = (guint) special_char_table[i][j];
 					k <= (guint) special_char_table[i][j + 1]; k++) {
 				unicode = &k;
+#ifdef GDK_WINDOWING_WIN32
+				memset(temp,0,10);
+				g_unichar_to_utf8(*unicode,temp);
+#else
 				g_sprintf(temp, "%lc", *unicode);
+#endif
+
 				//g_print("%lc", *unicode);
 				button = gtk_button_new_with_label(temp);
 				gtk_button_set_relief(button, GTK_RELIEF_NONE);
