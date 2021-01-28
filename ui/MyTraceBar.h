@@ -41,7 +41,7 @@ void my_trace_bar_get_obj_range(MyTraceBar *bar,gpointer obj,gdouble *min,gdoubl
 void my_trace_bar_set_obj_range(MyTraceBar *bar,gpointer obj,const gdouble min,const gdouble max);
 const GdkRGBA *my_trace_bar_get_obj_color(MyTraceBar *bar,gpointer obj);
 void my_trace_bar_set_obj_color(MyTraceBar *bar,gpointer obj,const GdkRGBA *color);
-GList *my_trace_bar_get_active_object(MyTraceBar *bar);
+void my_trace_bar_get_active_object(MyTraceBar *bar,GList **active_list,GList **unactive_list);
 
 G_END_DECLS
 #endif /* UI_MYTRACEBAR_H_ */

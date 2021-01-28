@@ -619,9 +619,10 @@ void my_trace_bar_set_obj_color(MyTraceBar *bar,gpointer obj,const GdkRGBA *colo
 	}
 }
 
-GList *my_trace_bar_get_active_object(MyTraceBar *bar){
+void my_trace_bar_get_active_object(MyTraceBar *bar,GList **active_list,GList **unactive_list){
 	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
-	GList *list=NULL;
+	GList *list=*active_list;
+	GList *unlist=*unactive_list;
 	gpointer key;
 	MyTraceBarRange *range;
 	GHashTableIter iter;
@@ -629,8 +630,12 @@ GList *my_trace_bar_get_active_object(MyTraceBar *bar){
 	while(g_hash_table_iter_next(&iter,&key,&range)){
 	if ((range->start <= priv->value) && (priv->value <= range->end))
 		list=g_list_append(list,key);
+	else
+		unlist=g_list_append(unlist,key);
 	}
 	list=g_list_append(list,NULL);
-	return g_list_first(list);
+	unlist=g_list_append(unlist,NULL);
+	*active_list=list;
+	*unactive_list=unlist;
 }
 

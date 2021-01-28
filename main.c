@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
-
 #include "ui/MainWin.h"
 
 int main(int argc,char *argv[]){
