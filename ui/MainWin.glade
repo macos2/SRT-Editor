@@ -262,6 +262,7 @@ Leave Blank for entire subtitile.</property>
                     <property name="margin_right">5</property>
                     <property name="margin_top">5</property>
                     <property name="margin_bottom">5</property>
+                    <signal name="activate" handler="subtitle_edit" object="MyMainWin" swapped="yes"/>
                   </object>
                 </child>
                 <child type="label">
@@ -290,6 +291,7 @@ Leave Blank for entire subtitile.</property>
                 <property name="shadow_type">in</property>
                 <child>
                   <object class="GtkEntry" id="subtitle_list_edit_format">
+                    <property name="width_request">500</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="tooltip_text" translatable="yes">Start Time					End Time
@@ -309,6 +311,7 @@ Regex Pattern
                     <property name="margin_right">5</property>
                     <property name="margin_top">5</property>
                     <property name="margin_bottom">5</property>
+                    <signal name="activate" handler="subtitle_edit" object="MyMainWin" swapped="yes"/>
                   </object>
                 </child>
                 <child type="label">
@@ -1331,7 +1334,7 @@ audio-volume-medium-symbolic</property>
             <property name="margin_right">5</property>
             <property name="spacing">5</property>
             <child>
-              <object class="GtkEntry">
+              <object class="GtkEntry" id="find_entry">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <signal name="activate" handler="subtitle_list_find_next_cb" object="MyMainWin" swapped="no"/>

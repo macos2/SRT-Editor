@@ -31,7 +31,7 @@ typedef struct {
 	GtkPopoverMenu *pop_menu;
 	GtkSpinButton *pop_menu_start, *pop_menu_end;
 	GtkEntry *pop_menu_subtitle, *pop_menu_label, *subtitle_list_edit_pattern,
-			*subtitle_list_edit_format;
+			*subtitle_list_edit_format,*find_entry;
 	GtkColorButton *subtitle_color, *subtitle_font_fill_color,
 			*subtitle_font_stroke_color, *pop_menu_color;
 	guint64 subtitle_index;
@@ -938,7 +938,13 @@ void subtitle_edit(MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	gchar *pattern = gtk_entry_get_text(priv->subtitle_list_edit_pattern);
 	gchar *format;
-	GRegex *regex = g_regex_new(pattern, 0, 0, NULL);
+	GRegex *regex;
+	if(g_strcmp0(pattern,"")==0){
+		regex = g_regex_new(".+", 0, 0, NULL);
+	}else{
+		regex = g_regex_new(pattern, 0, 0, NULL);
+	}
+
 	GDateTime *datetime = g_date_time_new_now_local();
 	while (gtk_tree_model_get_iter(priv->subtitle_list_edit_preview, &iter,
 			path)) {
@@ -1148,33 +1154,95 @@ void subtitle_list_save_cb(GtkButton *button, MyMainWin *self) {
 }
 
 void subtitle_list_find_next_cb(GtkButton *button, MyMainWin *self) {
+	GList *list=NULL;
 	GtkTreePath *path;
+	GtkTreeIter iter;
+	gchar *text,*find_parttern;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	GtkTreeSelection *sel = gtk_tree_view_get_selection(
 			priv->subtitle_treeview);
 	guint count = gtk_tree_selection_count_selected_rows(sel);
-	if (count == 0)
+	find_parttern=gtk_entry_get_text(priv->find_entry);
+	switch (count){
+	case 0:
 		path = gtk_tree_path_new_first();
-	if (count > 1) {
-
-	} else {
-
+		break;
+	default:
+		list=gtk_tree_selection_get_selected_rows(sel,&priv->subtitle_list);
+		path=list->data;
+		while(1){
+			if(list->next==NULL)break;
+			list=list->next;
+			if(gtk_tree_path_compare(list->data,path)>0)
+				path=list->data;
+		}
+		break;
 	}
+	while(gtk_tree_model_get_iter(priv->subtitle_list,&iter,path)){
+		gtk_tree_model_get(priv->subtitle_list,&iter,col_text,&text,-1);
+		if(g_strstr_len(text,-1,find_parttern)!=NULL){
+			gtk_tree_selection_unselect_all(sel);
+			gtk_tree_selection_select_path(sel,path);
+			g_free(text);
+			break;
+		};
+		g_free(text);
+		gtk_tree_path_next(path);
+	}
+	if(list!=NULL)
+		g_list_free_full(list,gtk_tree_path_free);
+	else
+		gtk_tree_path_free(path);
 }
 
 void subtitle_list_find_before_cb(GtkButton *button, MyMainWin *self) {
+	GList *list=NULL;
 	GtkTreePath *path;
+	GtkTreeIter iter;
+	gchar *text,*find_parttern;
+	gint depth;
+	gchar *temp;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	GtkTreeSelection *sel = gtk_tree_view_get_selection(
 			priv->subtitle_treeview);
 	guint count = gtk_tree_selection_count_selected_rows(sel);
-	if (count == 0)
+	find_parttern=gtk_entry_get_text(priv->find_entry);
+	switch (count){
+	case 0:
 		path = gtk_tree_path_new_first();
-	if (count > 1) {
-
-	} else {
-
+		depth=gtk_tree_path_get_depth (path);
+		gtk_tree_path_free(path);
+		temp=g_strdup_printf("%d",depth);
+		gtk_tree_path_new_from_string(temp);
+		g_free(temp);
+		break;
+	default:
+		list=gtk_tree_selection_get_selected_rows(sel,&priv->subtitle_list);
+		path=list->data;
+		while(1){
+			if(list->next==NULL)break;
+			list=list->next;
+			if(gtk_tree_path_compare(list->data,path)<0)
+				path=list->data;
+		}
+		break;
 	}
+	while(gtk_tree_model_get_iter(priv->subtitle_list,&iter,path)){
+		gtk_tree_model_get(priv->subtitle_list,&iter,col_text,&text,-1);
+		if(g_strstr_len(text,-1,find_parttern)!=NULL){
+			gtk_tree_selection_unselect_all(sel);
+			gtk_tree_selection_select_path(sel,path);
+			g_free(text);
+			break;
+		};
+		g_free(text);
+		if(gtk_tree_path_prev(path)!=TRUE)break;
+	}
+
+	if(list!=NULL)
+		g_list_free_full(list,gtk_tree_path_free);
+	else
+		gtk_tree_path_free(path);
 }
 
 void subtitle_list_selection_cb(GtkTreeSelection *treeselection,
@@ -1571,6 +1639,7 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_selection_cb);
 	gtk_widget_class_bind_template_callback(klass,
 			content_button_press_event_cb);
+	gtk_widget_class_bind_template_callback(klass,subtitle_edit);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -1636,6 +1705,9 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 			subtitle_list_edit_format);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
 			subtitle_list_edit_preview);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			find_entry);
+
 }
 ;
 
@@ -1682,6 +1754,8 @@ static void my_main_win_init(MyMainWin *self) {
 	char_stack_init(self);
 	priv->markup = g_regex_new("<[^>]+>", G_REGEX_OPTIMIZE, 0, NULL);
 	gtk_widget_set_sensitive(priv->subtitle_list_edit, FALSE);
+	gtk_entry_set_text(priv->subtitle_list_edit_pattern,".+");
+	gtk_entry_set_text(priv->subtitle_list_edit_format,"%p");
 }
 ;
 
