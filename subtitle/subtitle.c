@@ -64,7 +64,7 @@ void my_subtitle_load_file(MySubtitle *self,gchar *location){
 	}
 }
 
-gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,...){
+const gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,...){
 	gchar *subtitle=NULL;
 	MySubtitleInterface *iface= MY_SUBTITLE_GET_IFACE(self);
 	va_list ap;
@@ -88,7 +88,7 @@ guint64 my_subtitle_get_total_size(MySubtitle *self){
 void time_to_hh_mm_ss_sss(gdouble time,guint *hour,guint *minute,gdouble *second){
 *hour=(guint)time/3600;
 *minute=(guint)(time-*hour*3600)/60;
-*second=(time-*hour*3600.-*minute/60.);
+*second=(time-*hour*3600.-*minute*60.);
 }
 
 void remove_white_space(gchar *text){

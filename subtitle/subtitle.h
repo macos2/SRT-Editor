@@ -43,7 +43,7 @@ void my_subtitle_del_subtitle(MySubtitle *self,guint64 index);
 gchar* my_subtitle_to_string(MySubtitle *self);
 gboolean my_subtitle_to_file(MySubtitle *self,gchar *location);
 void my_subtitle_load_file(MySubtitle *self,gchar *location);
-gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,...);
+const gchar *my_subtitle_get_subtitle(MySubtitle *self,guint64 index,gdouble *start,gdouble *end,...);
 guint64 my_subtitle_get_total_size(MySubtitle *self);
 
 void time_to_hh_mm_ss_sss(gdouble time,guint *hour,guint *minute,gdouble *second);

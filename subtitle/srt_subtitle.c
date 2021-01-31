@@ -15,6 +15,7 @@ typedef struct {
 } SRTSubtitleData;
 
 typedef struct {
+	GHashTable *table;
 	GTree *tree;
 	guint64 count;
 	GRegex *hh_mm_ss_sss;
@@ -49,11 +50,15 @@ SRTSubtitleData* srt_subtitle_data_new(gchar *subtitle, gchar *font,
 	return data;
 }
 
-gint srt_subtitle_data_compare(SRTSubtitleData *a, SRTSubtitleData *b,
-		gpointer user_data) {
+gint srt_subtitle_data_compare(gpointer akey,gpointer bkey ,
+		MySrtSubtitle *self) {
+	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
+	SRTSubtitleData *a,*b;
+	a=g_hash_table_lookup(priv->table,akey);
+	b=g_hash_table_lookup(priv->table,bkey);
 	if (a->start > b->start)
-		return -1;
-	return 1;
+		return 1;
+	return -1;
 }
 
 void srt_subtitle_data_free(SRTSubtitleData *data) {
@@ -70,6 +75,7 @@ void my_srt_subtitle_dispose(MySrtSubtitle *self) {
 void my_srt_subtitle_finalize(MySrtSubtitle *self) {
 	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
 	g_tree_destroy(priv->tree);
+	g_hash_table_unref(priv->table);
 	g_regex_unref(priv->hh_mm_ss_sss);
 }
 ;
@@ -91,10 +97,11 @@ static void my_srt_subtitle_class_init(MySrtSubtitleClass *klass) {
 
 static void my_srt_subtitle_init(MySrtSubtitle *self) {
 	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
-	priv->tree = g_tree_new_full(srt_subtitle_data_compare, NULL, NULL,
-			srt_subtitle_data_free);
+	priv->table=g_hash_table_new_full(g_direct_hash,g_direct_equal,NULL,srt_subtitle_data_free);
+	priv->tree = g_tree_new_full(srt_subtitle_data_compare, self, NULL,
+			NULL);
 	priv->count = 0;
-	priv->hh_mm_ss_sss = g_regex_new("\d\d:\d\d:\d\d\.\d\d\d", G_REGEX_OPTIMIZE,
+	priv->hh_mm_ss_sss = g_regex_new("[0-9]+:[0-9]{2}:[0-9]{1,2}.[0-9]{3}", G_REGEX_OPTIMIZE,
 			0, NULL);
 }
 
@@ -115,8 +122,9 @@ guint64 my_srt_subtitle_add_subtitle(MySrtSubtitle *self, gchar *text,
 	} while (1);
 	SRTSubtitleData *data = srt_subtitle_data_new(text, font, color, start,
 			end);
-	g_tree_insert(priv->tree, GINT_TO_POINTER(priv->count), data);
 	priv->count++;
+	g_hash_table_insert(priv->table,GUINT_TO_POINTER(priv->count),data);
+	g_tree_insert(priv->tree, GINT_TO_POINTER(priv->count), data);
 	return priv->count - 1;
 }
 
@@ -139,14 +147,24 @@ void my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
 		GString *string) {
 	guint hour, minute;
 	gdouble second;
+	gchar *p,*s;
 	g_string_append_printf(string, "%d\n", to_string_index);
 	to_string_index++;
 	time_to_hh_mm_ss_sss(data->start, &hour, &minute, &second);
-	g_string_append_printf(string, "%02d:%02d:%0.3lf --> ", hour, minute,
+	g_string_append_printf(string, "%02d:%02d:%06.3lf --> ", hour, minute,
 			second);
 	time_to_hh_mm_ss_sss(data->end, &hour, &minute, &second);
-	g_string_append_printf(string, "%02d:%02d:%0.3lf\n%s\n\n", hour, minute,
-			second, data->subtitle);
+	g_string_append_printf(string, "%02d:%02d:%06.3lf\n", hour, minute,
+			second);
+	s=data->subtitle;
+	while(1){
+	p=g_strstr_len(s,-1,"</br>");
+	if(p==NULL)break;
+	string=g_string_append_len(string, s,p-s);
+	string=g_string_append_c(string,'\n');
+	s=p+5;
+	}
+	g_string_append_printf(string,"%s\n\n",s);
 }
 
 gchar* my_srt_subtitle_to_string(MySrtSubtitle *self) {
@@ -185,7 +203,11 @@ void my_srt_subtitle_load_file(MySrtSubtitle *self, gchar *location) {
 
 	do {
 		// read index eg:"1"
+		while(1){
 		line = g_data_input_stream_read_line(data, &len, NULL, &err);
+		if(g_strcmp0(line,"")!=0)break;
+		g_free(line);
+		}
 		if (err != NULL) {
 			g_printerr("ERR:%s\n", err->message);
 			g_free(line);
@@ -200,6 +222,7 @@ void my_srt_subtitle_load_file(MySrtSubtitle *self, gchar *location) {
 
 		//read the time eg: "12:34:56.789 --> 21:34:56.789"
 		line = g_data_input_stream_read_line(data, &len, NULL, &err);
+		if(line==NULL)break;//invaild data format
 		g_regex_match(priv->hh_mm_ss_sss, line, 0, &info);
 		start_s = g_match_info_fetch(info, 0);
 		g_match_info_next(info, NULL);
@@ -222,14 +245,14 @@ void my_srt_subtitle_load_file(MySrtSubtitle *self, gchar *location) {
 		do {
 			//read until to the blank line
 			line = g_data_input_stream_read_line(data, &len, NULL, &err);
-			if (g_strcmp0(line, "") == 0) {
+			if (line==NULL||g_strcmp0(line, "") == 0) {
 				g_free(line);
 				break;
 			}
 			if (subtitle == NULL)
 				subtitle = g_string_new("");
 			else
-				subtitle = g_string_append(subtitle, "\n");
+				subtitle = g_string_append(subtitle, "</br>");
 			subtitle = g_string_append(subtitle, line);
 			g_free(line);
 		} while (1);
@@ -250,7 +273,7 @@ gchar* my_srt_subtitle_get_subtitle(MySrtSubtitle *self, guint64 index,
 	SubtitleFormat format;
 	GdkRGBA *color;
 	gchar *font;
-	data = g_tree_lookup(priv->tree, GINT_TO_POINTER(index));
+	data = g_hash_table_lookup(priv->table, GINT_TO_POINTER(index));
 	if (data == NULL)
 		return NULL;
 	do {
@@ -273,6 +296,8 @@ gchar* my_srt_subtitle_get_subtitle(MySrtSubtitle *self, guint64 index,
 			break;
 		}
 	} while (1);
+	*start=data->start;
+	*end=data->end;
 	return data->subtitle;
 }
 

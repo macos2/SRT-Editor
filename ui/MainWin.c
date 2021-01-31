@@ -18,7 +18,7 @@ typedef struct {
 	GdkPixbuf *pixbuf;
 	GtkScale *video_progress;
 	GstState cur_state;
-	GtkBox *subtitle_trace;
+	GtkScrolledWindow *subtitle_trace;
 	MyTraceBar *trace_bar;
 	GtkInfoBar *info_bar;
 	GtkLabel *info_message;
@@ -30,7 +30,8 @@ typedef struct {
 	GtkEntry *subtitle;
 	GtkPopoverMenu *pop_menu;
 	GtkSpinButton *pop_menu_start, *pop_menu_end;
-	GtkEntry *pop_menu_subtitle, *pop_menu_label;
+	GtkEntry *pop_menu_subtitle, *pop_menu_label, *subtitle_list_edit_pattern,
+			*subtitle_list_edit_format;
 	GtkColorButton *subtitle_color, *subtitle_font_fill_color,
 			*subtitle_font_stroke_color, *pop_menu_color;
 	guint64 subtitle_index;
@@ -39,13 +40,14 @@ typedef struct {
 	gpointer *selected_index;
 	GtkPopover *pop_label, *ex_popover, *pop_subtitle_list;
 	GtkLabel *pop_label_text;
-	GtkButton *pop_menu_ex_menu, *ex_menu;
+	GtkButton *pop_menu_ex_menu, *ex_menu, *subtitle_list_edit;
 	GtkStack *char_stack;
 	GRegex *markup;
-	GtkListStore *subtitle_list;
+	GtkListStore *subtitle_list, *subtitle_list_edit_preview;
 	GtkTreeView *subtitle_treeview;
 	GtkDrawingArea *pop_label_preview;
 	GThreadPool *take_photo_thread;
+	GtkDialog *subtitle_list_edit_dialog;
 } MyMainWinPrivate;
 
 enum {
@@ -58,6 +60,10 @@ enum {
 	col_preview,
 	col_active,
 } SubtitleListCol;
+
+enum {
+	col_edit_preview_index, col_edit_preview_beforce, col_edit_preview_after,
+} SubtitleListEditPreviewCol;
 
 typedef struct {
 	guint64 index;
@@ -75,6 +81,16 @@ gboolean my_main_win_tree_row_ref_get_iter(GtkTreeRowReference *ref,
 	gboolean res = gtk_tree_model_get_iter(model, iter, path);
 	gtk_tree_path_free(path);
 	return res;
+}
+
+gboolean content_button_press_event_cb(GtkDrawingArea *area,
+		GdkEventButton *event, MyMainWin *self) {
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gtk_popover_popdown(priv->ex_popover);
+	gtk_popover_popdown(priv->pop_label);
+	gtk_popover_popdown(priv->pop_menu);
+	gtk_popover_popdown(priv->pop_subtitle_list);
+	return TRUE;
 }
 
 void my_main_win__new(GtkMenuItem *menuitem, MyMainWin *self) {
@@ -401,8 +417,8 @@ guint64 my_main_win_add_subtitle(MyMainWin *self, gdouble start, gdouble end,
 	s = g_strdup_printf(SUBTITLE_LIST_TIME_FORMAT, start);
 	p = g_strdup_printf(SUBTITLE_LIST_TIME_FORMAT, end);
 	GdkPixbuf *pixbuf = my_main_win_gen_subtitle_preview(self, subtitle);
-	gtk_list_store_set(priv->subtitle_list, &iter,
-			col_start_text, s, col_end_text, p, col_preview, pixbuf, -1);
+	gtk_list_store_set(priv->subtitle_list, &iter, col_start_text, s,
+			col_end_text, p, col_preview, pixbuf, -1);
 	g_free(s);
 	g_free(p);
 	gdk_pixbuf_unref(pixbuf);
@@ -442,13 +458,12 @@ void subtitle_auto_pause(GtkEntry *entry, gchar *new_text, gint new_text_length,
 		gst_element_set_state(priv->pipeline, GST_STATE_PAUSED);
 }
 
-void my_main_win_del_subtitle( MyMainWin *self,guint64 index){
+void my_main_win_del_subtitle(MyMainWin *self, guint64 index) {
 	GtkTreeIter iter;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	gpointer p=GUINT_TO_POINTER(index);
+	gpointer p = GUINT_TO_POINTER(index);
 	my_trace_bar_del_obj_range(priv->trace_bar, p);
-	SubtitleDictData *data = g_hash_table_lookup(priv->subtitle_table,
-			p);
+	SubtitleDictData *data = g_hash_table_lookup(priv->subtitle_table, p);
 	//remove from subtitle_list in treeview
 	if (my_main_win_tree_row_ref_get_iter(data->ref, &iter)) {
 		gtk_list_store_remove(priv->subtitle_list, &iter);
@@ -467,7 +482,7 @@ void my_main_win_del_subtitle( MyMainWin *self,guint64 index){
 void pop_menu_del_cb(GtkButton *button, MyMainWin *self) {
 	GtkTreeIter iter;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	my_main_win_del_subtitle(self,GPOINTER_TO_UINT(priv->selected_index));
+	my_main_win_del_subtitle(self, GPOINTER_TO_UINT(priv->selected_index));
 	priv->selected_index = NULL;
 	gtk_popover_popdown(priv->pop_menu);
 }
@@ -713,6 +728,37 @@ void subtitle_add_special_char_cb(GtkButton *button, MyMainWin *self) {
 	gtk_editable_set_position(entry, s);
 }
 
+gboolean subtitle_list_draw_cb(GtkWidget *widget, cairo_t *cr, MyMainWin *self) {
+	GList *list, *unlist;
+	SubtitleDictData *data;
+	list = NULL;
+	unlist = NULL;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	my_trace_bar_get_active_object(priv->trace_bar, &list, &unlist);
+	list = g_list_first(list);
+	unlist = g_list_first(unlist);
+	GHashTableIter iter;
+	GtkTreeIter titer;
+	//set the unactive state in subtitle list in treeview
+	while (unlist->data != NULL) {
+		data = g_hash_table_lookup(priv->subtitle_table, unlist->data);
+		my_main_win_tree_row_ref_get_iter(data->ref, &titer);
+		gtk_list_store_set(priv->subtitle_list, &titer, col_active, "", -1);
+		unlist = unlist->next;
+	}
+	g_list_free(unlist);
+	//set the active state in subtitle list in treeview
+	while (list->data != NULL) {
+		data = g_hash_table_lookup(priv->subtitle_table, list->data);
+		my_main_win_tree_row_ref_get_iter(data->ref, &titer);
+		gtk_list_store_set(priv->subtitle_list, &titer, col_active,
+				"media-playback-start-symbolic", -1);
+		list = list->next;
+	}
+	g_list_free(list);
+	return FALSE;
+}
+
 void subtitle_list_set_active(GtkCellRendererToggle *cell_renderer, gchar *path,
 		MyMainWin *self) {
 	g_print("set active\n");
@@ -788,6 +834,7 @@ void subtitle_list_set_text(GtkCellRendererText *renderer, gchar *path,
 }
 
 void subtitle_list_sync_data(MyMainWin *self, gpointer index) {
+	if(index==NULL)return;
 	gdouble s, e;
 	gchar *s_text, *e_text;
 	GtkTreeIter iter;
@@ -817,70 +864,327 @@ void subtitle_list_popup_down_cb(GtkButton *button, MyMainWin *self) {
 	}
 }
 
-void subtitle_list_del_cb(GtkButton *button, MyMainWin *self){
+void subtitle_list_del_cb(GtkButton *button, MyMainWin *self) {
 	guint64 index;
-	GList *index_list=NULL;
+	GList *index_list = NULL;
 	GtkTreeIter iter;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GtkTreeSelection *sel=gtk_tree_view_get_selection(priv->subtitle_treeview);
-	GList *list=gtk_tree_selection_get_selected_rows(sel,&priv->subtitle_list);
-	GList *p=list;
-	while(p!=NULL){
-		gtk_tree_model_get_iter(priv->subtitle_list,&iter,p->data);
-		gtk_tree_model_get(priv->subtitle_list,&iter,col_index,&index,-1);
-		index_list=g_list_append(index_list,GUINT_TO_POINTER(index));
-		p=p->next;
+	GtkTreeSelection *sel = gtk_tree_view_get_selection(
+			priv->subtitle_treeview);
+	GList *list = gtk_tree_selection_get_selected_rows(sel,
+			&priv->subtitle_list);
+	GList *p = list;
+	while (p != NULL) {
+		gtk_tree_model_get_iter(priv->subtitle_list, &iter, p->data);
+		gtk_tree_model_get(priv->subtitle_list, &iter, col_index, &index, -1);
+		index_list = g_list_append(index_list, GUINT_TO_POINTER(index));
+		p = p->next;
 	}
-	p=index_list;
-	while(p!=NULL){
-	index=GPOINTER_TO_UINT(p->data);
-	my_main_win_del_subtitle(self,index);
-	p=p->next;
+	p = index_list;
+	while (p != NULL) {
+		index = GPOINTER_TO_UINT(p->data);
+		my_main_win_del_subtitle(self, index);
+		p = p->next;
 	}
 	g_list_free(index_list);
-	g_list_free_full(list,gtk_tree_path_free);
+	g_list_free_full(list, gtk_tree_path_free);
 }
 
-void subtitle_list_edit_cb(GtkButton *button, MyMainWin *self){
+void string_replace(gchar **source, const gchar *replace_str,
+		const gchar *replacement) {
+	gchar *p, *s = *source;
+	GString *str = g_string_new("");
+	while (1) {
+		p = g_strstr_len(s, -1, replace_str);
+		if (p == NULL)
+			break;
+		g_string_append_len(str, s, p - s);
+		g_string_append_printf(str, "%s", replacement);
+		s = p + strlen(replace_str);
+	}
+	g_string_append_printf(str, "%s", s);
+	g_free(*source);
+	*source = str->str;
+	g_string_free(str, FALSE);
+}
+
+gchar* string_replace_not_free(const gchar *source, const gchar *replace_str,
+		const gchar *replacement) {
+	gchar *p, *s = source;
+	GString *str = g_string_new("");
+	while (1) {
+		p = g_strstr_len(s, -1, replace_str);
+		if (p == NULL)
+			break;
+		g_string_append_len(str, s, p - s);
+		g_string_append_printf(str, "%s", replacement);
+		s = p + strlen(replace_str);
+	}
+	g_string_append_printf(str, "%s", s);
+	p = str->str;
+	g_string_free(str, FALSE);
+	return p;
+}
+
+void subtitle_edit(MyMainWin *self) {
+	GtkTreeIter iter;
+	guint64 index;
+	gint s_text,e_text,p_text;
+	gdouble s, e, second;
+	GtkTreePath *path = gtk_tree_path_new_first();
+	GMatchInfo *info;
+	gchar *text, *match_pattern, *temp;
+	GString *new_text;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GtkTreeSelection *sel=gtk_tree_view_get_selection(priv->subtitle_treeview);
-	GList *list=gtk_tree_selection_get_selected_rows(sel,&priv->subtitle_list);
+	gchar *pattern = gtk_entry_get_text(priv->subtitle_list_edit_pattern);
+	gchar *format;
+	GRegex *regex = g_regex_new(pattern, 0, 0, NULL);
+	GDateTime *datetime = g_date_time_new_now_local();
+	while (gtk_tree_model_get_iter(priv->subtitle_list_edit_preview, &iter,
+			path)) {
+		gtk_tree_model_get(priv->subtitle_list_edit_preview, &iter,
+				col_edit_preview_index, &index, col_edit_preview_beforce, &text,
+				-1);
+		my_trace_bar_get_obj_range(priv->trace_bar, GUINT_TO_POINTER(index), &s,
+				&e);
+		format= g_strdup(gtk_entry_get_text(priv->subtitle_list_edit_format));
+		new_text=g_string_new("");
+		if (g_strstr_len(format, -1, "%sh")) {
+			temp = g_strdup_printf("%02d", (gint)s / 3600);
+			string_replace(&format, "%sh", temp);
+			g_free(temp);
+		};
+		s = s - (gint)(s / 3600) * 3600;
+		if (g_strstr_len(format, -1, "%sm")) {
+			temp = g_strdup_printf("%02d", (gint)s / 60);
+			string_replace(&format, "%sm", temp);
+			g_free(temp);
+		};
+		s = s - (gint)(s / 60) * 60;
+		if (g_strstr_len(format, -1, "%ss")) {
+			temp = g_strdup_printf("%06.3lf", s);
+			string_replace(&format, "%ss", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%eh")) {
+			temp = g_strdup_printf("%02d", (gint)e / 3600);
+			string_replace(&format, "%eh", temp);
+			g_free(temp);
+		};
+		e = e -(gint)(e / 3600) * 3600;
+		if (g_strstr_len(format, -1, "%em")) {
+			temp = g_strdup_printf("%02d", (gint)e / 60);
+			string_replace(&format, "%em", temp);
+			g_free(temp);
+		};
+		e = e - (gint)(e / 60) * 60;
+		if (g_strstr_len(format, -1, "%es")) {
+			temp = g_strdup_printf("%06.3lf", e);
+			string_replace(&format, "%es", temp);
+			g_free(temp);
+		};
 
-	g_list_free_full(list,gtk_tree_path_free);
+		if (g_strstr_len(format, -1, "%rhh")) {
+			temp = g_strdup_printf("%02d", g_date_time_get_hour(datetime));
+			string_replace(&format, "%rhh", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%rmm")) {
+			temp = g_strdup_printf("%02d", g_date_time_get_minute(datetime));
+			string_replace(&format, "%rmm", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%rss")) {
+			temp = g_strdup_printf("%02d", g_date_time_get_second(datetime));
+			string_replace(&format, "%rss", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%d")) {
+			temp = g_strdup_printf("%02d",
+					g_date_time_get_day_of_month(datetime));
+			string_replace(&format, "%d", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%m")) {
+			temp = g_strdup_printf("%02d", g_date_time_get_month(datetime));
+			string_replace(&format, "%m", temp);
+			g_free(temp);
+		};
+		if (g_strstr_len(format, -1, "%y")) {
+			temp = g_strdup_printf("%d", g_date_time_get_year(datetime));
+			string_replace(&format, "%y", temp);
+			g_free(temp);
+		};
+		p_text=0;
+		g_regex_match(regex, text, 0, &info);
+		while (g_match_info_matches(info)) {
+			g_match_info_fetch_pos(info,0,&s_text,&e_text);
+			g_string_append_len(new_text,text+p_text,s_text-p_text);
+			p_text=e_text;
+			if (g_strstr_len(format, -1, "%p")) {
+				match_pattern=g_match_info_fetch(info,0);
+				temp=string_replace_not_free(format,"%p",match_pattern);
+				g_string_append_printf(new_text,"%s",temp);
+				g_free(temp);
+				g_free(match_pattern);
+			}else{
+				g_string_append_printf(new_text,"%s",format);
+			};
+			g_match_info_next(info, NULL);
+		}
+		g_string_append_printf(new_text,"%s",text+p_text);
+		gtk_list_store_set(priv->subtitle_list_edit_preview,&iter,col_edit_preview_after,new_text->str,-1);
+		g_string_free(new_text,TRUE);
+		g_match_info_free(info);
+		g_free(text);
+		g_free(format);
+		gtk_tree_path_next(path);
+	}
+	g_date_time_unref(datetime);
+	g_regex_unref(regex);
 }
 
-void subtitle_list_open_cb(GtkButton *button, MyMainWin *self){
+void subtitle_list_edit_cb(GtkButton *button, MyMainWin *self) {
+	guint64 index;
+	GtkTreeIter iter, piter;
+	SubtitleDictData *data;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	GtkTreeSelection *sel = gtk_tree_view_get_selection(
+			priv->subtitle_treeview);
+	GList *list = gtk_tree_selection_get_selected_rows(sel,
+			&priv->subtitle_list);
+	gtk_list_store_clear(priv->subtitle_list_edit_preview);
+	while (1) {
+		gtk_tree_model_get_iter(priv->subtitle_list, &iter, list->data);
+		gtk_tree_model_get(priv->subtitle_list, &iter, col_index, &index, -1);
+		data = g_hash_table_lookup(priv->subtitle_table,
+				GUINT_TO_POINTER(index));
+		gtk_list_store_append(priv->subtitle_list_edit_preview, &piter);
+		gtk_list_store_set(priv->subtitle_list_edit_preview, &piter,
+				col_edit_preview_index, index, col_edit_preview_beforce,
+				data->subtitle, -1);
+		if (list->next == NULL)
+			break;
+		list = list->next;
+	}
+	g_list_free_full(list, gtk_tree_path_free);
+	gint respon = gtk_dialog_run(priv->subtitle_list_edit_dialog);
+	gtk_widget_hide(priv->subtitle_list_edit_dialog);
+	if (respon == GTK_RESPONSE_CANCEL)return;
+	subtitle_edit(self);
+	GtkTreePath *path=gtk_tree_path_new_first();
+	gchar *after;
+	while(gtk_tree_model_get_iter(priv->subtitle_list_edit_preview,&iter,path)){
+		gtk_tree_model_get(priv->subtitle_list_edit_preview,&iter,col_edit_preview_index,&index,col_edit_preview_after,&after,-1);
+		data=g_hash_table_lookup(priv->subtitle_table,GUINT_TO_POINTER(index));
+		g_free(data->subtitle);
+		data->subtitle=after;
+		pop_menu_sync(self,GUINT_TO_POINTER(index));
+		subtitle_list_sync_data(self,GUINT_TO_POINTER(index));
+		gtk_tree_path_next(path);
+	};
+	gtk_tree_path_free(path);
 
 }
 
-void subtitle_list_save_cb(GtkButton *button, MyMainWin *self){
-
+void subtitle_list_open_cb(GtkButton *button, MyMainWin *self) {
+	gdouble s, e;
+	gchar *text;
+	GtkFileChooserDialog *dialog = gtk_file_chooser_dialog_new(
+			"Open Subtitle File", self, GTK_FILE_CHOOSER_ACTION_OPEN,
+			GTK_STOCK_OK, GTK_RESPONSE_OK, GTK_STOCK_CANCEL,
+			GTK_RESPONSE_CANCEL, NULL);
+	gint respon = gtk_dialog_run(dialog);
+	if (respon == GTK_RESPONSE_OK) {
+		gchar *location = gtk_file_chooser_get_filename(dialog);
+		MySubtitle *subtitle = my_srt_subtitle_new();
+		my_subtitle_load_file(subtitle, location);
+		guint64 count = my_subtitle_get_total_size(subtitle);
+		for (guint64 i = 1; i <= count; i++) {
+			text = my_subtitle_get_subtitle(subtitle, i, &s, &e,
+					Subtitle_Format_None);
+			my_main_win_add_subtitle(self, s, e, text);
+		}
+		g_object_unref(subtitle);
+		g_free(location);
+	}
+	gtk_widget_destroy(dialog);
 }
 
-void subtitle_list_find_next_cb(GtkButton *button, MyMainWin *self){
+void subtitle_list_save_cb(GtkButton *button, MyMainWin *self) {
+	gdouble start, end;
+	gchar *subtitle;
+	SubtitleDictData *data;
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	GtkFileChooserDialog *dialog = gtk_file_chooser_dialog_new(
+			"Save Subtitle File", self, GTK_FILE_CHOOSER_ACTION_SAVE,
+			GTK_STOCK_OK, GTK_RESPONSE_OK, GTK_STOCK_CANCEL,
+			GTK_RESPONSE_CANCEL, NULL);
+	gint respon = gtk_dialog_run(dialog);
+	if (respon == GTK_RESPONSE_OK) {
+		gchar *location = gtk_file_chooser_get_filename(dialog);
+		MySubtitle *subtitle = my_srt_subtitle_new();
+		GList *key = g_hash_table_get_keys(priv->subtitle_table);
+		if (key != NULL) {
+			while (1) {
+				data = g_hash_table_lookup(priv->subtitle_table,
+						GUINT_TO_POINTER(key->data));
+				my_trace_bar_get_obj_range(priv->trace_bar,
+						GUINT_TO_POINTER(data->index), &start, &end);
+				my_subtitle_add_subtitle(subtitle, data->subtitle, start, end,
+						Subtitle_Format_None);
+				if (key->next != NULL)
+					key = key->next;
+				else
+					break;
+			}
+			g_list_free(key);
+			my_subtitle_to_file(subtitle, location);
+		}
+		g_free(location);
+		g_object_unref(subtitle);
+	}
+	gtk_widget_destroy(dialog);
+}
+
+void subtitle_list_find_next_cb(GtkButton *button, MyMainWin *self) {
 	GtkTreePath *path;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GtkTreeSelection *sel=gtk_tree_view_get_selection(priv->subtitle_treeview);
-	guint count=gtk_tree_selection_count_selected_rows(sel);
-	if(count==1)path=gtk_tree_path_new_first();
-	if(count>1){
+	GtkTreeSelection *sel = gtk_tree_view_get_selection(
+			priv->subtitle_treeview);
+	guint count = gtk_tree_selection_count_selected_rows(sel);
+	if (count == 0)
+		path = gtk_tree_path_new_first();
+	if (count > 1) {
 
-	}else{
+	} else {
 
 	}
 }
 
-void subtitle_list_find_before_cb(GtkButton *button, MyMainWin *self){
+void subtitle_list_find_before_cb(GtkButton *button, MyMainWin *self) {
 	GtkTreePath *path;
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
-	GtkTreeSelection *sel=gtk_tree_view_get_selection(priv->subtitle_treeview);
-	guint count=gtk_tree_selection_count_selected_rows(sel);
-	if(count==1)path=gtk_tree_path_new_first();
-	if(count>1){
+	GtkTreeSelection *sel = gtk_tree_view_get_selection(
+			priv->subtitle_treeview);
+	guint count = gtk_tree_selection_count_selected_rows(sel);
+	if (count == 0)
+		path = gtk_tree_path_new_first();
+	if (count > 1) {
 
-	}else{
+	} else {
 
 	}
+}
+
+void subtitle_list_selection_cb(GtkTreeSelection *treeselection,
+		MyMainWin *self) {
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gint count = gtk_tree_selection_count_selected_rows(treeselection);
+	if (count > 1)
+		gtk_widget_set_sensitive(priv->subtitle_list_edit, TRUE);
+	else
+		gtk_widget_set_sensitive(priv->subtitle_list_edit, FALSE);
 }
 
 void my_main_win_trace_bar_obj_selected(MyTraceBar *bar, gpointer index,
@@ -1097,26 +1401,7 @@ gboolean content_draw_cb(GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) 
 		}
 		g_list_free_full(list_row, g_free);
 	}
-
-//	list = g_list_first(list);
-//	unlist = g_list_first(unlist);
-//	GHashTableIter iter;
-//	GtkTreeIter titer;
-	//set the unactive state in subtitle list in treeview
-//	while (unlist->data != NULL) {
-//		data = g_hash_table_lookup(priv->subtitle_table, unlist->data);
-//		my_main_win_tree_row_ref_get_iter(data->ref, &titer);
-//		gtk_list_store_set(priv->subtitle_list, &titer, col_active, "", -1);
-//		unlist = unlist->next;
-//	}
 	g_list_free(unlist);
-	//set the active state in subtitle list in treeview
-//	while (list->data != NULL) {
-//		data = g_hash_table_lookup(priv->subtitle_table, list->data);
-//		my_main_win_tree_row_ref_get_iter(data->ref, &titer);
-//		gtk_list_store_set(priv->subtitle_list, &titer, col_active,"media-playback-start-symbolic", -1);
-//		list = list->next;
-//	}
 	g_list_free(list);
 
 	GstQuery *duration = gst_query_new_duration(GST_FORMAT_TIME);
@@ -1281,8 +1566,11 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_edit_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_del_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_find_next_cb);
-	gtk_widget_class_bind_template_callback(klass, 	subtitle_list_find_before_cb);
-
+	gtk_widget_class_bind_template_callback(klass,
+			subtitle_list_find_before_cb);
+	gtk_widget_class_bind_template_callback(klass, subtitle_list_selection_cb);
+	gtk_widget_class_bind_template_callback(klass,
+			content_button_press_event_cb);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -1338,7 +1626,16 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 			pop_label_preview);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
 			pop_subtitle_list);
-
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list_edit);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list_edit_dialog);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list_edit_pattern);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list_edit_format);
+	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+			subtitle_list_edit_preview);
 }
 ;
 
@@ -1365,10 +1662,11 @@ static void my_main_win_init(MyMainWin *self) {
 	gst_bus_add_signal_watch(bus);
 
 	priv->take_photo_thread = g_thread_pool_new(my_main_win_take_photo_thread,
-			NULL, 16, FALSE, NULL);
+	NULL, 16, FALSE, NULL);
 
 	priv->trace_bar = my_trace_bar_new("Sub Title");
-	gtk_box_pack_start(priv->subtitle_trace, priv->trace_bar, TRUE, FALSE, 0);
+	//gtk_box_pack_start(priv->subtitle_trace, priv->trace_bar, TRUE, FALSE, 0);
+	gtk_container_add(priv->subtitle_trace, priv->trace_bar);
 	gtk_spin_button_set_value(priv->subtitle_last_time,
 			gtk_spin_button_get_value(priv->default_subtitle_last_time));
 	g_signal_connect(priv->trace_bar, "obj_selected",
@@ -1383,6 +1681,7 @@ static void my_main_win_init(MyMainWin *self) {
 			my_main_win_trace_bar_obj_range_change, self);
 	char_stack_init(self);
 	priv->markup = g_regex_new("<[^>]+>", G_REGEX_OPTIMIZE, 0, NULL);
+	gtk_widget_set_sensitive(priv->subtitle_list_edit, FALSE);
 }
 ;
 

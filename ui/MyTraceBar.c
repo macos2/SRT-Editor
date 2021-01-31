@@ -56,6 +56,7 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 	gdouble temp;
 	gchar *temp_describe;
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
+	gint h=gtk_widget_get_allocated_height(self);
 	switch (property_id) {
 	case MyTraceBarMax:
 		temp = g_value_get_double(value);
@@ -63,6 +64,7 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 			priv->max = temp;
 			g_object_notify(self, "max");
 		}
+		gtk_widget_set_size_request(self, (priv->max-priv->min)*3, h);
 		break;
 	case MyTraceBarMin:
 		temp = g_value_get_double(value);
@@ -70,6 +72,7 @@ void my_trace_bar_set_property(MyTraceBar *self, guint property_id,
 			priv->min = temp;
 			g_object_notify(self, "min");
 		}
+		gtk_widget_set_size_request(self, (priv->max-priv->min)*3, h);
 		break;
 	case MyTraceBarDescribe:
 		temp_describe = g_value_get_string(value);
@@ -154,9 +157,11 @@ void my_trace_bar_draw_range(MyTraceBar *self, MyTraceBarRange *range,
 		cairo_t *cr, gdouble x_unit,gdouble alpha) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
+	GtkAllocation alloc;
+	gtk_widget_get_allocation(self,&alloc);
 	cairo_save(cr);
-	cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
-			(range->end - range->start) * x_unit, 36);
+	cairo_rectangle(cr, (range->start - priv->min) * x_unit, alloc.height*0.4,
+			(range->end - range->start) * x_unit,alloc.height*0.56);
 	cairo_set_source_rgba(cr, range->color.red, range->color.green,
 			range->color.blue, range->color.alpha*alpha);
 	cairo_fill(cr);
@@ -165,7 +170,7 @@ void my_trace_bar_draw_range(MyTraceBar *self, MyTraceBarRange *range,
 	cairo_text_extents(cr, range->describe, &text_ex);
 	cairo_move_to(cr,
 			(range->start * x_unit + range->end * x_unit - text_ex.width) / 2.0,
-			26. + 18. + text_ex.height / 2.0);
+			alloc.height*0.6875 + text_ex.height / 2.0);
 	cairo_show_text(cr, range->describe);
 	cairo_restore(cr);
 }
@@ -174,19 +179,21 @@ void my_trace_bar_draw_preselected_range(MyTraceBar *self,
 		MyTraceBarRange *range, cairo_t *cr, gdouble x_unit) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
+	GtkAllocation alloc;
+	gtk_widget_get_allocation(self,&alloc);
 	cairo_save(cr);
 	my_trace_bar_draw_range(self, range, cr, x_unit,1.0);
 	cairo_set_source_rgb(cr, 1., 1., 1.);
 	cairo_set_line_width(cr, 4.);
 	if (abs(priv->motion_x - range->start * x_unit) < 3) {
-		cairo_move_to(cr, range->start * x_unit, 26);
-		cairo_line_to(cr, range->start * x_unit, 62);
+		cairo_move_to(cr, range->start * x_unit, alloc.height*0.4);
+		cairo_line_to(cr, range->start * x_unit, alloc.height*0.96);
 	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
-		cairo_move_to(cr, range->end * x_unit, 26);
-		cairo_line_to(cr, range->end * x_unit, 62);
+		cairo_move_to(cr, range->end * x_unit, alloc.height*0.4);
+		cairo_line_to(cr, range->end * x_unit, alloc.height*0.96);
 	} else {
-		cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
-				(range->end - range->start) * x_unit, 36);
+		cairo_rectangle(cr, (range->start - priv->min) * x_unit,alloc.height*0.4,
+				(range->end - range->start) * x_unit, alloc.height*0.56);
 	}
 	cairo_stroke(cr);
 	cairo_restore(cr);
@@ -196,26 +203,27 @@ void my_trace_bar_draw_selected_range(MyTraceBar *self, MyTraceBarRange *range,
 		cairo_t *cr, gdouble x_unit) {
 	MyTraceBarPrivate *priv = my_trace_bar_get_instance_private(self);
 	cairo_text_extents_t text_ex;
+	GtkAllocation alloc;
+	gtk_widget_get_allocation(self,&alloc);
 	cairo_save(cr);
 	my_trace_bar_draw_range(self, range, cr, x_unit,1.0);
-
 	cairo_set_line_width(cr, 2.);
 	priv->adj_range_max = FALSE;
 	priv->adj_range_min = FALSE;
 	if (abs(priv->motion_x - range->start * x_unit) < 3) {
 		cairo_set_source_rgb(cr, 0., 1., 0.3);
-		cairo_move_to(cr, range->start * x_unit, 26);
-		cairo_line_to(cr, range->start * x_unit, 62);
+		cairo_move_to(cr, range->start * x_unit, alloc.height*0.4);
+		cairo_line_to(cr, range->start * x_unit, alloc.height*0.96);
 		priv->adj_range_min = TRUE;
 	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
 		cairo_set_source_rgb(cr, 0.3,0.,1. );
-		cairo_move_to(cr, range->end * x_unit, 26);
-		cairo_line_to(cr, range->end * x_unit, 62);
+		cairo_move_to(cr, range->end * x_unit, alloc.height*0.4);
+		cairo_line_to(cr, range->end * x_unit, alloc.height*0.96);
 		priv->adj_range_max = TRUE;
 	} else {
 		cairo_set_source_rgb(cr, 1., 0.3, 0.);
-		cairo_rectangle(cr, (range->start - priv->min) * x_unit, 26.,
-				(range->end - range->start) * x_unit, 36);
+		cairo_rectangle(cr, (range->start - priv->min) * x_unit, alloc.height*0.4,
+				(range->end - range->start) * x_unit,  alloc.height*0.56);
 	}
 	cairo_stroke(cr);
 	cairo_restore(cr);
@@ -255,7 +263,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	cairo_save(cr);
 	for (i = 0; i < 101; i++) {
 		cairo_move_to(cr, 0, 0);
-		cairo_line_to(cr, 0, 5);
+		cairo_line_to(cr, 0, 0.08*alloc.height);
 		cairo_translate(cr, alloc.width / 100., 0);
 	}
 	cairo_stroke(cr);
@@ -264,19 +272,19 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	cairo_set_font_size(cr, 15);
 	for (i = 0; i < 11; i++) {
 		cairo_move_to(cr, 0, 0);
-		cairo_line_to(cr, 0, 10);
+		cairo_line_to(cr, 0, 0.16*alloc.height);
 		g_sprintf(temp, "%.2lf\0",
 				i * (priv->max - priv->min) / 10. + priv->min);
 		cairo_text_extents(cr, temp, &text_ex);
 		switch (i) {
 		case 0:
-			cairo_move_to(cr, 0, 12 + text_ex.height);
+			cairo_move_to(cr, 0, 0.18*alloc.height + text_ex.height);
 			break;
 		case 10:
-			cairo_move_to(cr, text_ex.width * -1., 12 + text_ex.height);
+			cairo_move_to(cr, text_ex.width * -1., 0.18*alloc.height + text_ex.height);
 			break;
 		default:
-			cairo_move_to(cr, text_ex.width / -2., 12 + text_ex.height);
+			cairo_move_to(cr, text_ex.width / -2., 0.18*alloc.height + text_ex.height);
 			break;
 		}
 		cairo_show_text(cr, temp);
@@ -290,8 +298,8 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	unit = alloc.width / (priv->max - priv->min);
 	while (g_hash_table_iter_next(&iter, &key, &range)) {
 		cairo_new_path (cr);
-		cairo_rectangle(cr, (range->start - priv->min) * unit-3., 26.,
-				(range->end - range->start) * unit+6., 36);
+		cairo_rectangle(cr, (range->start - priv->min) * unit-3.,alloc.height*0.4,
+				(range->end - range->start) * unit+6., alloc.height*0.56);
 		if (cairo_in_fill(cr, priv->motion_x, priv->motion_y)) {
 			mouse_in_range = g_list_append(mouse_in_range, key);
 		} else {
@@ -326,10 +334,10 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		}
 		range = g_hash_table_lookup(priv->table,  preselected_key);
 		my_trace_bar_draw_preselected_range(self, range, cr, unit);
-			rectangle.height=36;
+			rectangle.height=0.56*alloc.height;
 			rectangle.width=(gint)(range->end - range->start) * unit;
 			rectangle.x= (gint)(range->start - priv->min) * unit;
-			rectangle.y=26;
+			rectangle.y=0.40*alloc.height;
 			if(priv->preselected_key!=preselected_key)g_signal_emit_by_name(self,"obj_preselected",preselected_key,&rectangle,NULL);
 		priv->preselected_key=preselected_key;
 	}
@@ -358,10 +366,10 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		range = g_hash_table_lookup(priv->table,selected_key);
 		my_trace_bar_draw_selected_range(self, range, cr, unit);
 		if(priv->selected_key==NULL){
-			rectangle.height=36;
+			rectangle.height=0.56*alloc.height;
 			rectangle.width=(gint)(range->end - range->start) * unit;
 			rectangle.x= (gint)(range->start - priv->min) * unit;
-			rectangle.y=26;
+			rectangle.y=0.40*alloc.height;
 			g_signal_emit_by_name(self,"obj_selected",selected_key,&rectangle,NULL);
 			priv->selected_key=selected_key;
 		}
@@ -371,7 +379,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 		//the mouse is not in the key range area. clear the select index and selected_key.
 		priv->press_button = 0;
 		priv->select_index = 0;
-		if(priv->selected_key!=NULL&&priv->motion_y>26.){
+		if(priv->selected_key!=NULL&&priv->motion_y>(0.40*alloc.height)){
 			g_signal_emit_by_name(self,"obj_unselected",priv->selected_key,NULL);
 			priv->selected_key = NULL;
 		}
