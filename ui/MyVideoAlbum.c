@@ -131,7 +131,15 @@ GstPipeline *general_pipeline(gchar *file_path){
 	sink=gst_element_factory_make("gdkpixbufsink","sink");
 	nullsink=gst_element_factory_make("fakesink","null");
 	gst_bin_add_many(line,src,NULL);
+#ifdef G_OS_WIN32
+	gchar *t=g_strdup(file_path);
+	string_replace(&t,"\\","/");
+	gchar *temp=g_strdup_printf("file:///%s",t);
+	g_free(t);
+#else
 	gchar *temp=g_strdup_printf("file://%s",file_path);
+#endif
+
 	g_object_set(src,"video-sink",sink,"audio-sink",nullsink,"uri",temp,NULL);
 	g_free(temp);
 	return line;
