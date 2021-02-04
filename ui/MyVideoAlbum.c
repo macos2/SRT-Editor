@@ -273,9 +273,7 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	gst_object_unref(line);
 	if(surf!=NULL){
 	gchar *file_path=general_album_filepath(file,setting->file_format,setting->save_dir,w,h,duration/1000000000.);
-	temp=g_filename_display_basename(file);
-	if(g_strcmp0(file_path,temp)==0){//if the file_path is same with the video file,add a suffix ".png" to avoid overwrite the video file.
-		g_free(temp);
+	if(g_strcmp0(file_path,file)==0){//if the file_path is same with the video file,add a suffix ".png" to avoid overwrite the video file.
 		temp=g_strdup_printf("%s.png",file_path);
 		g_free(file_path);
 		file_path=temp;

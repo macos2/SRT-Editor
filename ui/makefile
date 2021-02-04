@@ -1,8 +1,6 @@
 gresource.c:gresource.xml *.glade
-	glib-compile-resources --generate-source $<
+	glib-compile-resources --generate-source gresource.xml
+	glib-compile-resources --generate-header gresource.xml
 
-gresource.h:gresource.xml *.glade
-	glib-compile-resources --generate-header $<
-
-all:gresource.h gresource.c
+all:gresource.c
 	@echo "Generate Gresources\n"

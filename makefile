@@ -4,7 +4,5 @@ all:SRT-Editor
 SRT-Editor:main.c ui/*.c ui/*.h subtitle/*.c subtitle/*.h ui/*.glade
 		@make -C ui
 		gcc main.c ui/*.c subtitle/*.c -o SRT-Editor $(PKG-CONFIG) -w -no-pie -g
-#gcc $(shell find *.c */*.c) -o SRT-Editor $(PKG-CONFIG) -w -no-pie -g
-
 clean:
 		-rm SRT-Editor
