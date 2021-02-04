@@ -6,6 +6,7 @@
  */
 
 #include "../ui/MainWin.h"
+#include "string_helper.h"
 #include "../ui/gresource.h"
 #define SUBTITLE_LIST_TIME_FORMAT "%.3f s"
 
@@ -48,6 +49,7 @@ typedef struct {
 	GtkDrawingArea *pop_label_preview;
 	GThreadPool *take_photo_thread;
 	GtkDialog *subtitle_list_edit_dialog;
+	MyVideoAlbum *videoalbum;
 } MyMainWinPrivate;
 
 enum {
@@ -140,6 +142,11 @@ void my_main_win_save_as(GtkMenuItem *menuitem, MyMainWin *self) {
 	g_print("Save as");
 }
 ;
+void my_main_win_video_dir_album(GtkMenuItem *menuitem, MyMainWin *self) {
+	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
+	gtk_widget_show_all(priv->videoalbum);
+	gtk_widget_show_now(priv->videoalbum);
+}
 
 void my_main_win_prev_cb(GtkButton *button, MyMainWin *self) {
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
@@ -331,7 +338,7 @@ GdkPixbuf* my_main_win_gen_subtitle_preview(MyMainWin *self, gchar *subtitle) {
 	} while (1);
 	t = g_utf8_strlen(p, -1);
 	w = w > t ? w : t;
-	w = w * 12;
+	w = w * 25;
 	h = rows * 25;
 
 	//prepare the preview of the subtitle.
@@ -888,42 +895,6 @@ void subtitle_list_del_cb(GtkButton *button, MyMainWin *self) {
 	}
 	g_list_free(index_list);
 	g_list_free_full(list, gtk_tree_path_free);
-}
-
-void string_replace(gchar **source, const gchar *replace_str,
-		const gchar *replacement) {
-	gchar *p, *s = *source;
-	GString *str = g_string_new("");
-	while (1) {
-		p = g_strstr_len(s, -1, replace_str);
-		if (p == NULL)
-			break;
-		g_string_append_len(str, s, p - s);
-		g_string_append_printf(str, "%s", replacement);
-		s = p + strlen(replace_str);
-	}
-	g_string_append_printf(str, "%s", s);
-	g_free(*source);
-	*source = str->str;
-	g_string_free(str, FALSE);
-}
-
-gchar* string_replace_not_free(const gchar *source, const gchar *replace_str,
-		const gchar *replacement) {
-	gchar *p, *s = source;
-	GString *str = g_string_new("");
-	while (1) {
-		p = g_strstr_len(s, -1, replace_str);
-		if (p == NULL)
-			break;
-		g_string_append_len(str, s, p - s);
-		g_string_append_printf(str, "%s", replacement);
-		s = p + strlen(replace_str);
-	}
-	g_string_append_printf(str, "%s", s);
-	p = str->str;
-	g_string_free(str, FALSE);
-	return p;
 }
 
 void subtitle_edit(MyMainWin *self) {
@@ -1613,14 +1584,12 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass,
 			pop_menu_start_change_value_cb);
 	gtk_widget_class_bind_template_callback(klass, ex_popover_popup_down_cb);
-
 	gtk_widget_class_bind_template_callback(klass, subtitle_add_br_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_bold_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_color_set_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_italic_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_under_line_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_auto_pause);
-
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_active);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_start);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_set_end);
@@ -1628,7 +1597,6 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass,
 			pop_label_preview_draw_callback);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_popup_down_cb);
-
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_save_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_open_cb);
 	gtk_widget_class_bind_template_callback(klass, subtitle_list_edit_cb);
@@ -1640,6 +1608,7 @@ static void my_main_win_class_init(MyMainWinClass *klass) {
 	gtk_widget_class_bind_template_callback(klass,
 			content_button_press_event_cb);
 	gtk_widget_class_bind_template_callback(klass,subtitle_edit);
+	gtk_widget_class_bind_template_callback(klass,	my_main_win_video_dir_album);
 
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin, content);
 	gtk_widget_class_bind_template_child_private(klass, MyMainWin,
@@ -1756,6 +1725,7 @@ static void my_main_win_init(MyMainWin *self) {
 	gtk_widget_set_sensitive(priv->subtitle_list_edit, FALSE);
 	gtk_entry_set_text(priv->subtitle_list_edit_pattern,".+");
 	gtk_entry_set_text(priv->subtitle_list_edit_format,"%p");
+	priv->videoalbum=my_video_album_new();
 }
 ;
 
