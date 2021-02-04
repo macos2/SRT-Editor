@@ -27,6 +27,7 @@ typedef struct {
 	ThreadSetting *setting;
 	GtkLevelBar *progress;
 	GtkButton *generate_album;
+	GtkFileFilter *video_filter;
 } MyVideoAlbumPrivate;
 
 G_DEFINE_TYPE_WITH_CODE(MyVideoAlbum, my_video_album, GTK_TYPE_WINDOW,
@@ -163,7 +164,7 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	gst_element_set_state(line,GST_STATE_PLAYING);
 	while(1){
 		//msg=gst_bus_pop_filtered(bus,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
-		msg=gst_bus_timed_pop_filtered(bus,GST_CLOCK_TIME_NONE,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
+		msg=gst_bus_timed_pop_filtered(bus,20*GST_SECOND,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
 		if(msg==NULL)break;
 		switch(msg->type){
 		case GST_MESSAGE_ELEMENT:
@@ -175,6 +176,10 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			if(pixbuf!=NULL){
 				if(surf==NULL){//the surface have not been init.
 					gst_element_query_duration(line,GST_FORMAT_TIME,&duration);
+					if(duration==G_MAXUINT64){//it is a image not a video
+						exit=TRUE;
+						break;
+					}
 					if(duration>(setting->mini_count*30000000000)){
 						count=duration/30000000000;
 						if(count>setting->max_count)count=setting->max_count;
@@ -241,7 +246,6 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 				cairo_fill(cr);
 				g_free(temp);
 				cairo_restore(cr);
-
 			}
 
 			if(i<count){
@@ -299,7 +303,8 @@ gboolean my_video_album_watch ( MyVideoAlbum *self){
 }
 
 void general_album_cb(GtkButton *button, MyVideoAlbum *self) {
-	gchar *file_path,*file,*p,*l;
+	gchar *file_path;
+	gchar *filename,*suffix,*p;
 	__album_index=0;
 	__finish_album=0;
 	MyVideoAlbumPrivate *priv = my_video_album_get_instance_private(self);
@@ -317,23 +322,21 @@ void general_album_cb(GtkButton *button, MyVideoAlbum *self) {
 	__video_num=g_async_queue_length(priv->queue);
 	while(g_async_queue_length(priv->queue)>0){
 		file_path=g_async_queue_pop(priv->queue);
-		l=g_filename_display_basename(file_path);
-		file=g_ascii_strdown(l,-1);
-		g_free(l);
-		l=file;
-		do{
-		p=g_strstr_len(l+1,-1,".");
-		if(p==NULL)break;
-		l=p;
-		}while(1);
-		if(l!=NULL){//skip the image file.
-			if(g_strstr_len(l,-1,".png")||g_strstr_len(l,-1,".jpg")||g_strstr_len(l,-1,".jpeg")){
-				g_free(file_path);
-				file_path=NULL;
-				__video_num--;
-			}
+		filename=g_filename_display_basename(file_path);
+		suffix=g_ascii_strdown(filename,-1);
+		g_free(filename);
+		filename=suffix;
+		while(1){
+			p=g_strstr_len(suffix+1,-1,".");
+			if(p==NULL)break;
+			suffix=p;
 		}
-		g_free(file);
+		if(g_strstr_len(suffix,-1,".png")||g_strstr_len(suffix,-1,".jpg")||g_strstr_len(suffix,-1,".jpeg")){
+			g_free(file_path);
+			file_path=NULL;
+			__video_num--;
+		}
+		g_free(filename);
 		if(file_path!=NULL)g_thread_pool_push(priv->pool,file_path,NULL);
 	}
 	gtk_level_bar_set_max_value(priv->progress,__video_num);
@@ -366,6 +369,8 @@ static void my_video_album_class_init(MyVideoAlbumClass *klass) {
 			generate_album);
 	gtk_widget_class_bind_template_child_private(klass, MyVideoAlbum,
 			max_count);
+	gtk_widget_class_bind_template_child_private(klass, MyVideoAlbum,
+			video_filter);
 	gtk_widget_class_bind_template_callback(klass,general_album_cb);
 	gtk_widget_class_bind_template_callback(klass,with_video_dir_toggled_cb);
 }
@@ -376,7 +381,7 @@ static void my_video_album_init(MyVideoAlbum *self) {
 	MyVideoAlbumPrivate *priv = my_video_album_get_instance_private(self);
 	priv->queue=g_async_queue_new();
 	priv->setting=malloc(sizeof(ThreadSetting));
-	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,8,FALSE,NULL);
+	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,4,FALSE,NULL);
 
 	if(photo_dir!=NULL)gtk_file_chooser_set_current_folder(priv->save_dir,photo_dir);
 }

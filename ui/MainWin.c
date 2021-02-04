@@ -1071,6 +1071,9 @@ void subtitle_list_open_cb(GtkButton *button, MyMainWin *self) {
 			"Open Subtitle File", self, GTK_FILE_CHOOSER_ACTION_OPEN,
 			GTK_STOCK_OK, GTK_RESPONSE_OK, GTK_STOCK_CANCEL,
 			GTK_RESPONSE_CANCEL, NULL);
+	GtkFileFilter *filter=gtk_file_filter_new();
+	gtk_file_filter_add_pattern(filter,"*.srt");
+	gtk_file_chooser_set_filter(dialog,filter);
 	gint respon = gtk_dialog_run(dialog);
 	if (respon == GTK_RESPONSE_OK) {
 		gchar *location = gtk_file_chooser_get_filename(dialog);
@@ -1097,6 +1100,9 @@ void subtitle_list_save_cb(GtkButton *button, MyMainWin *self) {
 			"Save Subtitle File", self, GTK_FILE_CHOOSER_ACTION_SAVE,
 			GTK_STOCK_OK, GTK_RESPONSE_OK, GTK_STOCK_CANCEL,
 			GTK_RESPONSE_CANCEL, NULL);
+	GtkFileFilter *filter=gtk_file_filter_new();
+	gtk_file_filter_add_pattern(filter,"*.srt");
+	gtk_file_chooser_set_filter(dialog,filter);
 	gint respon = gtk_dialog_run(dialog);
 	if (respon == GTK_RESPONSE_OK) {
 		gchar *location = gtk_file_chooser_get_filename(dialog);
