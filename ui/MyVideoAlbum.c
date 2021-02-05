@@ -139,7 +139,6 @@ GstPipeline *general_pipeline(gchar *file_path){
 #else
 	gchar *temp=g_strdup_printf("file://%s",file_path);
 #endif
-
 	g_object_set(src,"video-sink",sink,"audio-sink",nullsink,"uri",temp,NULL);
 	g_free(temp);
 	return line;
@@ -354,8 +353,11 @@ void general_album_cb(GtkButton *button, MyVideoAlbum *self) {
 }
 
 void with_video_dir_toggled_cb(GtkCheckButton *button, MyVideoAlbum *self){
+	gboolean active;
 	MyVideoAlbumPrivate *priv = my_video_album_get_instance_private(self);
-	gtk_widget_set_sensitive(priv->save_dir,~gtk_toggle_button_get_active(button));
+	active=gtk_toggle_button_get_active(button);
+	active=active?FALSE:TRUE;
+	gtk_widget_set_sensitive(priv->save_dir,active);
 }
 
 static void my_video_album_class_init(MyVideoAlbumClass *klass) {

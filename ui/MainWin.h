@@ -12,6 +12,7 @@
 #include <cairo.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
+#include <glib-object.h>
 
 #include "../ui/MyTraceBar.h"
 #include "../subtitle/subtitle.h"

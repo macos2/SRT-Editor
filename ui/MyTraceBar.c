@@ -241,7 +241,7 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	MyTraceBarRange *range;
 	gpointer key, preselected_key = NULL,selected_key;
 	GList *mouse_in_range = NULL;
-	gdouble unit;
+	gdouble unit,text_mark;
 	GdkRectangle rectangle;
 	gtk_widget_get_allocation(self, &alloc);
 	cairo_save(cr);
@@ -273,8 +273,12 @@ gboolean my_trace_bar_draw(MyTraceBar *self, cairo_t *cr) {
 	for (i = 0; i < 11; i++) {
 		cairo_move_to(cr, 0, 0);
 		cairo_line_to(cr, 0, 0.16*alloc.height);
-		g_sprintf(temp, "%.2lf\0",
-				i * (priv->max - priv->min) / 10. + priv->min);
+		text_mark=((priv->max - priv->min)*i) / 10.+priv->min;
+#ifdef G_OS_WIN32
+		sprintf(temp, "%.2f\0",text_mark);
+#else
+		g_sprintf(temp, "%.2f\0",text_mark);
+#endif
 		cairo_text_extents(cr, temp, &text_ex);
 		switch (i) {
 		case 0:

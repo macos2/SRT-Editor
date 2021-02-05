@@ -177,8 +177,8 @@ void my_main_win_next_cb(GtkButton *button, MyMainWin *self) {
 	}
 	gst_element_set_state(priv->pipeline, GST_STATE_PLAYING);
 	gst_element_seek_simple(priv->pipeline, GST_FORMAT_TIME,
-			GST_SEEK_FLAG_TRICKMODE | GST_SEEK_FLAG_SNAP_AFTER,
-			dur - 5000000000);
+			GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE,
+			dur - 5*GST_SECOND);
 	gst_element_set_state(priv->pipeline, priv->cur_state);
 	gst_query_unref(duration);
 	g_object_unref(bus);
@@ -189,7 +189,7 @@ gboolean video_progress_change_value_cb(GtkScrollbar *video_progress,
 	MyMainWinPrivate *priv = my_main_win_get_instance_private(self);
 	gst_element_set_state(priv->pipeline, GST_STATE_PLAYING);
 	gst_element_seek_simple(priv->pipeline, GST_FORMAT_TIME,
-			GST_SEEK_FLAG_TRICKMODE | GST_SEEK_FLAG_SNAP_AFTER,
+			GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE,
 			value * 1000000);
 	gst_element_set_state(priv->pipeline, priv->cur_state);
 	return TRUE;
