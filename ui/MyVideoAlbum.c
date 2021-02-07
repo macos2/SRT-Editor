@@ -202,24 +202,30 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 					cairo_set_source_rgb(cr,0,0,0);
 					cairo_rectangle(cr,0,0,surf_w,surf_h);
 					cairo_fill(cr);
+#ifdef G_OS_WIN32
+					//cairo_font_face_t *font_face=cairo_toy_font_face_create("MSYHL",CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_NORMAL);
+					//cairo_set_font_face(cr,font_face);
+					//cairo_font_face_destroy(font_face);
+					cairo_select_font_face(cr,"sans-serif",CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_NORMAL);
+#endif
 					cairo_set_source_rgb(cr,1.,1.,1.);
 					cairo_set_font_size(cr,24.);
 					display_name=g_filename_display_basename(file);
-					temp=g_strdup_printf("File : %s",display_name);
+					temp=g_strdup_printf("File       : %s",display_name);
 					cairo_text_extents(cr,temp,&text_ex);
 					cairo_move_to(cr,5,5+text_ex.height);
 					cairo_show_text(cr,temp);
 					cairo_fill(cr);
 					g_free(temp);
 					g_free(display_name);
-					temp=g_strdup_printf("Res : %d x %d",w,h);
+					temp=g_strdup_printf("Resolution : %d x %d",w,h);
 					cairo_text_extents(cr,temp,&text_ex);
 					cairo_move_to(cr,5,34+text_ex.height);
 					cairo_show_text(cr,temp);
 					cairo_fill(cr);
 					g_free(temp);
 					time_to_hh_mm_ss_sss(duration/1000000000.,&hour,&minute,&second);
-					temp=g_strdup_printf("Dur : %02u : %02u : %04.1lf <--> %4.1f s",hour,minute,second,duration/1000000000.);
+					temp=g_strdup_printf("Duration   : %02u : %02u : %04.1lf <--> %4.1f s",hour,minute,second,duration/1000000000.);
 					cairo_text_extents(cr,temp,&text_ex);
 					cairo_move_to(cr,5,58+text_ex.height);
 					cairo_show_text(cr,temp);
