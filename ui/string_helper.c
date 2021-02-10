@@ -8,6 +8,9 @@
 
 void string_replace(gchar **source, const gchar *replace_str,
 		const gchar *replacement) {
+	if(replacement==NULL||replace_str==NULL){
+		g_printerr("%s Replacement == NULL\n",__func__);
+	}
 	gchar *p, *s = *source;
 	GString *str = g_string_new("");
 	while (1) {
@@ -26,6 +29,10 @@ void string_replace(gchar **source, const gchar *replace_str,
 
 gchar* string_replace_not_free(const gchar *source, const gchar *replace_str,
 		const gchar *replacement) {
+	if(replacement==NULL||replace_str==NULL){
+		g_printerr("%s Replacement == NULL\n",__func__);
+		return g_strdup(source);
+	}
 	gchar *p, *s = source;
 	GString *str = g_string_new("");
 	while (1) {
