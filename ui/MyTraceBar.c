@@ -185,10 +185,10 @@ void my_trace_bar_draw_preselected_range(MyTraceBar *self,
 	my_trace_bar_draw_range(self, range, cr, x_unit,1.0);
 	cairo_set_source_rgb(cr, 1., 1., 1.);
 	cairo_set_line_width(cr, 4.);
-	if (abs(priv->motion_x - range->start * x_unit) < 3) {
+	if (fabs(priv->motion_x - range->start * x_unit) < 3.) {
 		cairo_move_to(cr, range->start * x_unit, alloc.height*0.4);
 		cairo_line_to(cr, range->start * x_unit, alloc.height*0.96);
-	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
+	} else if (fabs(range->end * x_unit - priv->motion_x) < 3.) {
 		cairo_move_to(cr, range->end * x_unit, alloc.height*0.4);
 		cairo_line_to(cr, range->end * x_unit, alloc.height*0.96);
 	} else {
@@ -210,12 +210,12 @@ void my_trace_bar_draw_selected_range(MyTraceBar *self, MyTraceBarRange *range,
 	cairo_set_line_width(cr, 2.);
 	priv->adj_range_max = FALSE;
 	priv->adj_range_min = FALSE;
-	if (abs(priv->motion_x - range->start * x_unit) < 3) {
+	if (fabs(priv->motion_x - range->start * x_unit) < 3.) {
 		cairo_set_source_rgb(cr, 0., 1., 0.3);
 		cairo_move_to(cr, range->start * x_unit, alloc.height*0.4);
 		cairo_line_to(cr, range->start * x_unit, alloc.height*0.96);
 		priv->adj_range_min = TRUE;
-	} else if (abs(range->end * x_unit - priv->motion_x) < 3) {
+	} else if (fabs(range->end * x_unit - priv->motion_x) < 3.) {
 		cairo_set_source_rgb(cr, 0.3,0.,1. );
 		cairo_move_to(cr, range->end * x_unit, alloc.height*0.4);
 		cairo_line_to(cr, range->end * x_unit, alloc.height*0.96);
@@ -605,8 +605,8 @@ void my_trace_bar_set_obj_range(MyTraceBar *bar,gpointer obj,const gdouble start
 	MyTraceBarPrivate *priv=my_trace_bar_get_instance_private(bar);
 	range=g_hash_table_lookup(priv->table,obj);
 	if(range!=NULL){
-		range->start=start<end?start:end;
-		range->end=start<end?end:start;
+		range->start=start<end?start:end-0.01;
+		range->end=start<end?end:start+0.01;
 	}
 }
 const GdkRGBA *my_trace_bar_get_obj_color(MyTraceBar *bar,gpointer obj){
