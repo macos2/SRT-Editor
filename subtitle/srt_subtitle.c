@@ -143,7 +143,7 @@ void my_srt_subtitle_to_file(MySrtSubtitle *self, gchar *location) {
 }
 
 guint64 to_string_index;
-void my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
+gboolean my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
 		GString *string) {
 	guint hour, minute;
 	gdouble second;
@@ -165,11 +165,13 @@ void my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
 	s=p+5;
 	}
 	g_string_append_printf(string,"%s\n\n",s);
+	return FALSE;
 }
 
-void my_srt_subtitle_data_to_screen(gpointer key, SRTSubtitleData *data,
+gboolean my_srt_subtitle_data_to_screen(gpointer key, SRTSubtitleData *data,
 		GString *string){
   g_print("%d,%s\n",to_string_index,data->subtitle);
+  return FALSE;
 
 }
 
