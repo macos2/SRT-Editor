@@ -292,6 +292,7 @@ void my_main_win_take_photo_cb (GtkButton *button, MyMainWin *self) {
     cairo_destroy (cr);
     cairo_surface_destroy (surf);
     g_free (temp);
+    fflush(NULL);
   }
 }
 
@@ -318,6 +319,7 @@ void my_main_win_take_photo_thread (gpointer *data, gpointer user_data) {
   g_object_unref (pixbuf);
   g_free (file_name);
   g_free (data);
+  fflush(NULL);
 }
 
 GdkPixbuf* my_main_win_gen_subtitle_preview (MyMainWin *self, gchar *subtitle) {
@@ -1693,8 +1695,8 @@ static void my_main_win_init (MyMainWin *self) {
   gst_bus_add_signal_watch (bus);
 
   priv->take_photo_thread = g_thread_pool_new (my_main_win_take_photo_thread,
-  NULL,
-					       16, FALSE, NULL);
+  NULL,1, FALSE, NULL);
+
 
   priv->trace_bar = my_trace_bar_new ("Sub Title");
   //gtk_box_pack_start(priv->subtitle_trace, priv->trace_bar, TRUE, FALSE, 0);

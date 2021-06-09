@@ -167,11 +167,18 @@ void my_srt_subtitle_data_to_string(gpointer key, SRTSubtitleData *data,
 	g_string_append_printf(string,"%s\n\n",s);
 }
 
+void my_srt_subtitle_data_to_screen(gpointer key, SRTSubtitleData *data,
+		GString *string){
+  g_print("%d,%s\n",to_string_index,data->subtitle);
+
+}
+
 gchar* my_srt_subtitle_to_string(MySrtSubtitle *self) {
 	MySrtSubtitlePrivate *priv = my_srt_subtitle_get_instance_private(self);
 	GString *string = g_string_new("");
 	to_string_index = 0;
 	gchar *result;
+	g_tree_foreach(priv->tree, my_srt_subtitle_data_to_screen, string);
 	g_tree_foreach(priv->tree, my_srt_subtitle_data_to_string, string);
 	result = string->str;
 	g_string_free(string, FALSE);

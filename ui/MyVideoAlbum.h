@@ -10,6 +10,7 @@
 #include <glib-object.h>
 #include <gtk/gtk.h>
 #include <gst/gst.h>
+#include <stdio.h>
 G_BEGIN_DECLS
 #define MY_TYPE_VIDEO_ALBUM my_video_album_get_type()
 G_DECLARE_DERIVABLE_TYPE(MyVideoAlbum, my_video_album, MY, VIDEO_ALBUM,

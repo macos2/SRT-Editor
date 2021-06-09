@@ -8,6 +8,7 @@
 #include "MyVideoAlbum.h"
 #include "string_helper.h"
 #include "../ui/gresource.h"
+
 guint __album_index;//the order of the album ,start from 0 to __video_num
 guint __video_num;//the num of video to generate album
 guint __finish_album;//the num of album which have been generate.
@@ -302,6 +303,7 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	cairo_surface_destroy(surf);
 	}
 	g_free(file);
+	fflush(NULL);
 	__finish_album++;
 
 }
