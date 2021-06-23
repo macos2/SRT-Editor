@@ -583,159 +583,58 @@ void ex_popover_popup_down_cb (GtkButton *button, MyMainWin *self) {
   }
 }
 
+void subtitle_entry_modify(GtkEntry *entry,gchar *perfix,gchar *suffix){
+  gint s,e;
+  gtk_editable_get_selection_bounds(entry, &s, &e);
+  gchar *selected=gtk_editable_get_chars(entry, s, e);
+  gtk_editable_delete_selection(entry);
+  gchar *temp=g_strdup_printf("%s%s%s",perfix,selected,suffix);
+  gtk_editable_insert_text(entry, temp, -1, &s);
+//  g_print("%d\t%d\t%d\t%d\n",s,e,g_utf8_strlen(perfix,-1),g_utf8_strlen(selected,-1));
+//  s=s<e?s:e;
+//  gtk_editable_select_region(entry, s,  s+g_utf8_strlen(selected,-1));
+  g_free(selected);
+  g_free(temp);
+}
+
 void subtitle_color_set_cb (GtkColorButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gint s = 0, e = 0, len, ns, ne;
-  gchar *text;
   GdkRGBA color;
   GString *temp = g_string_new ("");
   GtkEntry *entry = gtk_popover_get_relative_to (priv->ex_popover);
   gtk_color_chooser_get_rgba (priv->subtitle_color, &color);
-  gtk_editable_get_selection_bounds (entry, &s, &e);
-  if (s > e) {
-    len = s;
-    s = e;
-    e = len;
-  }
-  len = e - s;
-  text = gtk_editable_get_chars (entry, 0, s);
-  temp = g_string_append (temp, text);
-  g_free (text);
   guint r = color.red * 255;
   guint g = color.green * 255;
   guint b = color.blue * 255;
   g_string_append_printf (temp, "<font color=\"#%02x%02x%02x\">", r, g, b);
-  ns = g_utf8_strlen (temp->str, -1);
-  text = gtk_editable_get_chars (entry, s, e);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  ne = g_utf8_strlen (temp->str, -1);
-  g_string_append_printf (temp, "</font>");
-  text = gtk_editable_get_chars (entry, e, -1);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  gtk_entry_set_text (entry, temp->str);
-  gtk_editable_select_region (entry, ns, ne);
-  g_string_free (temp, TRUE);
+  subtitle_entry_modify(entry, temp->str, "</font>");
+  g_string_free(temp, TRUE);
+
 }
 
 void subtitle_bold_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gint s = 0, e = 0, len, ns, ne;
-  gchar *text;
-  GString *temp = g_string_new ("");
   GtkEntry *entry = gtk_popover_get_relative_to (priv->ex_popover);
-  gtk_editable_get_selection_bounds (entry, &s, &e);
-  if (s > e) {
-    len = s;
-    s = e;
-    e = len;
-  }
-  len = e - s;
-  text = gtk_editable_get_chars (entry, 0, s);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  g_string_append_printf (temp, "<b>");
-  ns = g_utf8_strlen (temp->str, -1);
-  text = gtk_editable_get_chars (entry, s, e);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  ne = g_utf8_strlen (temp->str, -1);
-  g_string_append_printf (temp, "</b>");
-  text = gtk_editable_get_chars (entry, e, -1);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  gtk_entry_set_text (entry, temp->str);
-  gtk_editable_select_region (entry, ns, ne);
-  g_string_free (temp, TRUE);
+  subtitle_entry_modify(entry,"<b>","</b>");
 }
 
 void subtitle_italic_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gint s = 0, e = 0, len, ns, ne;
-  gchar *text;
-  GString *temp = g_string_new ("");
   GtkEntry *entry = gtk_popover_get_relative_to (priv->ex_popover);
-  gtk_editable_get_selection_bounds (entry, &s, &e);
-  if (s > e) {
-    len = s;
-    s = e;
-    e = len;
-  }
-  len = e - s;
-  text = gtk_editable_get_chars (entry, 0, s);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  g_string_append_printf (temp, "<i>");
-  ns = g_utf8_strlen (temp->str, -1);
-  text = gtk_editable_get_chars (entry, s, e);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  ne = g_utf8_strlen (temp->str, -1);
-  g_string_append_printf (temp, "</i>");
-  text = gtk_editable_get_chars (entry, e, -1);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  gtk_entry_set_text (entry, temp->str);
-  gtk_editable_select_region (entry, ns, ne);
-  g_string_free (temp, TRUE);
+  subtitle_entry_modify(entry,"<i>","</i>");
 }
 
 void subtitle_under_line_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gint s = 0, e = 0, len, ns, ne;
-  gchar *text;
-  GString *temp = g_string_new ("");
   GtkEntry *entry = gtk_popover_get_relative_to (priv->ex_popover);
-  gtk_editable_get_selection_bounds (entry, &s, &e);
-  if (s > e) {
-    len = s;
-    s = e;
-    e = len;
-  }
-  len = e - s;
-  text = gtk_editable_get_chars (entry, 0, s);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  g_string_append_printf (temp, "<u>");
-  ns = g_utf8_strlen (temp->str, -1);
-  text = gtk_editable_get_chars (entry, s, e);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  ne = g_utf8_strlen (temp->str, -1);
-  g_string_append_printf (temp, "</u>");
-  text = gtk_editable_get_chars (entry, e, -1);
-  temp = g_string_append (temp, text);
-  g_free (text);
-  gtk_entry_set_text (entry, temp->str);
-  gtk_editable_select_region (entry, ns, ne);
-  g_string_free (temp, TRUE);
+  subtitle_entry_modify(entry,"<u>","</u>");
 }
 
 void subtitle_add_br_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gint s = 0, e = 0, len, ns, ne;
-  gchar *text;
-  GString *temp = g_string_new ("");
   GtkEntry *entry = gtk_popover_get_relative_to (priv->ex_popover);
-  g_object_get (entry, "cursor-position", &s, "selection-bound", &e, "text",
-		&text, NULL);
-  if (s > e) {
-    len = s;
-    s = e;
-    e = len;
-  }
-  len = e - s;
-  temp = g_string_append_len (temp, text, s);
-  g_string_append_printf (temp, "</br>");
-  ns = temp->len;
-  ne = ns + len;
-  temp = g_string_append_len (temp, text + s, len);
-  temp = g_string_append (temp, text + e);
-  gtk_entry_set_text (entry, temp->str);
-  gtk_editable_select_region (entry, ns, ne);
-  g_string_free (temp, TRUE);
-  g_free (text);
+  subtitle_entry_modify(entry,"</br>","");
+
 }
 
 void subtitle_add_special_char_cb (GtkButton *button, MyMainWin *self) {
