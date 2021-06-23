@@ -148,6 +148,7 @@ GstPipeline *general_pipeline(gchar *file_path){
 
 void general_album_thread(gchar *file,ThreadSetting *setting){
 	if(file==NULL)return;
+	g_print("%s(%s)\n",__func__,file);
 	gboolean exit=FALSE;
 	gchar *debug;
 	GError *err;
@@ -163,7 +164,7 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	GstPipeline *line=general_pipeline(file);
 	g_free(temp);
 	gchar *display_name;
-	GstMessage *msg;
+	GstMessage *msg=NULL;
 	gint w,h,surf_w,surf_h,row=0,col=0;
 	gdouble radio=1.;
 	cairo_surface_t *surf=NULL;
@@ -174,11 +175,10 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	while(1){
 		//msg=gst_bus_pop_filtered(bus,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
 		msg=gst_bus_timed_pop_filtered(bus,20*GST_SECOND,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
+		gst_element_set_state(line,GST_STATE_PAUSED);
 		if(msg==NULL)break;
 		switch(msg->type){
 		case GST_MESSAGE_ELEMENT:
-//			gst_element_query_position(line,GST_FORMAT_TIME,&cur);
-//			if(cur<(i*interval))break;//skip the frame before the special position,
 			gst_bus_set_flushing (bus,TRUE);
 			s=gst_message_get_structure(msg);
 			gst_structure_get(s,"pixbuf",GDK_TYPE_PIXBUF,&pixbuf,NULL);
@@ -205,9 +205,6 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 					cairo_rectangle(cr,0,0,surf_w,surf_h);
 					cairo_fill(cr);
 #ifdef G_OS_WIN32
-					//cairo_font_face_t *font_face=cairo_toy_font_face_create("MSYHL",CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_NORMAL);
-					//cairo_set_font_face(cr,font_face);
-					//cairo_font_face_destroy(font_face);
 					cairo_select_font_face(cr,"sans-serif",CAIRO_FONT_SLANT_NORMAL,CAIRO_FONT_WEIGHT_BOLD);
 #endif
 					cairo_set_source_rgb(cr,1.,1.,1.);
@@ -261,12 +258,13 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 				cairo_fill(cr);
 				g_free(temp);
 				cairo_restore(cr);
+				cairo_surface_flush(surf);
 			}
-
 			if(i<count){
 				i++;
-				gst_element_seek_simple(line,GST_FORMAT_TIME,GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,i*interval);
-				gst_bus_set_flushing (bus,FALSE);
+				gst_element_set_state (line,GST_STATE_PLAYING);
+				gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,i*interval);
+				//gst_bus_set_flushing (bus,FALSE);
 			}else{
 				exit=TRUE;
 			}
