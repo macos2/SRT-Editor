@@ -149,7 +149,6 @@ GstPipeline *general_pipeline(gchar *file_path){
 void general_album_thread(gchar *file,ThreadSetting *setting){
 	if(file==NULL)return;
 	g_print("%s(%s)\n",__func__,file);
-	gboolean te;
 	gboolean exit=FALSE;
 	gchar *debug;
 	GError *err;
@@ -173,12 +172,15 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	cairo_text_extents_t text_ex;
 	GstBus *bus=gst_pipeline_get_bus(line);
 	gst_element_set_state(line,GST_STATE_PLAYING);
+	guint8 retry=0;
+	GstEvent *seek_event;
 	while(1){
 		//msg=gst_bus_pop_filtered(bus,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
-		msg=gst_bus_timed_pop_filtered(bus,20*GST_SECOND,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
+		msg= gst_bus_timed_pop_filtered (bus, 20*GST_SECOND,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
 		if(msg==NULL)break;
 		switch(msg->type){
 		case GST_MESSAGE_ELEMENT:
+			retry=0;
 			gst_bus_set_flushing (bus,TRUE);
 			s=gst_message_get_structure(msg);
 			gst_structure_get(s,"pixbuf",GDK_TYPE_PIXBUF,&pixbuf,NULL);
@@ -189,6 +191,7 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 						exit=TRUE;
 						break;
 					}
+					count=setting->mini_count;
 					if(duration>(setting->mini_count*30000000000)){
 						count=duration/30000000000;
 						if(count>setting->max_count)count=setting->max_count;
@@ -262,9 +265,9 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			}
 			if(i<count){
 				i++;
-				te=gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,i*interval);
-				gst_element_set_state(line,GST_STATE_PAUSED);
-				gst_element_set_state (line,GST_STATE_PLAYING);
+//				seek_event=gst_event_new_seek(interval/GST_SECOND, GST_FORMAT_TIME,  GST_SEEK_FLAG_FLUSH |  GST_SEEK_FLAG_KEY_UNIT, GST_SEEK_TYPE_SET, i*interval, GST_SEEK_TYPE_END,0);
+//				gst_element_send_event (line, seek_event);
+				gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH |  GST_SEEK_FLAG_ACCURATE,i*interval);
 				//gst_bus_set_flushing (bus,FALSE);
 			}else{
 				exit=TRUE;
@@ -280,10 +283,10 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			exit=TRUE;
 			break;
 		}
-		  if (msg != NULL){
-		    gst_message_unref (msg);
-		    msg=NULL;
-		  }
+//		  if (msg != NULL){
+//		    gst_message_unref (msg);
+//		    msg=NULL;
+//		  }
 		if(exit)break;
 	}
 	gst_object_unref(bus);
@@ -399,7 +402,7 @@ static void my_video_album_init(MyVideoAlbum *self) {
 	MyVideoAlbumPrivate *priv = my_video_album_get_instance_private(self);
 	priv->queue=g_async_queue_new();
 	priv->setting=malloc(sizeof(ThreadSetting));
-	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,1,FALSE,NULL);
+	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,4,FALSE,NULL);
 
 	if(photo_dir!=NULL)gtk_file_chooser_set_current_folder(priv->save_dir,photo_dir);
 }
