@@ -265,10 +265,8 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			}
 			if(i<count){
 				i++;
-//				seek_event=gst_event_new_seek(interval/GST_SECOND, GST_FORMAT_TIME,  GST_SEEK_FLAG_FLUSH |  GST_SEEK_FLAG_KEY_UNIT, GST_SEEK_TYPE_SET, i*interval, GST_SEEK_TYPE_END,0);
-//				gst_element_send_event (line, seek_event);
 				gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH |  GST_SEEK_FLAG_ACCURATE,i*interval);
-				//gst_bus_set_flushing (bus,FALSE);
+				gst_bus_set_flushing (bus,FALSE);
 			}else{
 				exit=TRUE;
 			}
@@ -283,10 +281,10 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			exit=TRUE;
 			break;
 		}
-//		  if (msg != NULL){
-//		    gst_message_unref (msg);
-//		    msg=NULL;
-//		  }
+		  if (msg != NULL){
+		    gst_message_unref (msg);
+		    msg=NULL;
+		  }
 		if(exit)break;
 	}
 	gst_object_unref(bus);
