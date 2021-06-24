@@ -149,6 +149,7 @@ GstPipeline *general_pipeline(gchar *file_path){
 void general_album_thread(gchar *file,ThreadSetting *setting){
 	if(file==NULL)return;
 	g_print("%s(%s)\n",__func__,file);
+	gboolean te;
 	gboolean exit=FALSE;
 	gchar *debug;
 	GError *err;
@@ -175,7 +176,6 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 	while(1){
 		//msg=gst_bus_pop_filtered(bus,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
 		msg=gst_bus_timed_pop_filtered(bus,20*GST_SECOND,GST_MESSAGE_ELEMENT|GST_MESSAGE_EOS|GST_MESSAGE_ERROR);
-		gst_element_set_state(line,GST_STATE_PAUSED);
 		if(msg==NULL)break;
 		switch(msg->type){
 		case GST_MESSAGE_ELEMENT:
@@ -262,8 +262,9 @@ void general_album_thread(gchar *file,ThreadSetting *setting){
 			}
 			if(i<count){
 				i++;
+				te=gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,i*interval);
+				gst_element_set_state(line,GST_STATE_PAUSED);
 				gst_element_set_state (line,GST_STATE_PLAYING);
-				gst_element_seek_simple(line,GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,i*interval);
 				//gst_bus_set_flushing (bus,FALSE);
 			}else{
 				exit=TRUE;
@@ -398,7 +399,7 @@ static void my_video_album_init(MyVideoAlbum *self) {
 	MyVideoAlbumPrivate *priv = my_video_album_get_instance_private(self);
 	priv->queue=g_async_queue_new();
 	priv->setting=malloc(sizeof(ThreadSetting));
-	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,4,FALSE,NULL);
+	priv->pool=g_thread_pool_new(general_album_thread,priv->setting,1,FALSE,NULL);
 
 	if(photo_dir!=NULL)gtk_file_chooser_set_current_folder(priv->save_dir,photo_dir);
 }
