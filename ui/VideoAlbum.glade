@@ -19,7 +19,7 @@
   <object class="GtkAdjustment" id="adjustment3">
     <property name="lower">3</property>
     <property name="upper">10000</property>
-    <property name="value">60</property>
+    <property name="value">48</property>
     <property name="step-increment">1</property>
     <property name="page-increment">10</property>
   </object>
@@ -123,23 +123,52 @@ a 1280x720 'video.mp4' file under 'test' directory,duration 123.456 second
                 <property name="label-xalign">0</property>
                 <property name="shadow-type">in</property>
                 <child>
-                  <object class="GtkFileChooserButton" id="save_dir">
+                  <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="sensitive">False</property>
                     <property name="can-focus">False</property>
-                    <property name="margin-left">5</property>
-                    <property name="margin-right">5</property>
-                    <property name="margin-top">5</property>
-                    <property name="margin-bottom">5</property>
-                    <property name="action">select-folder</property>
-                    <property name="title" translatable="yes"/>
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkFileChooserButton" id="save_dir">
+                        <property name="visible">True</property>
+                        <property name="sensitive">False</property>
+                        <property name="can-focus">False</property>
+                        <property name="margin-left">5</property>
+                        <property name="margin-right">5</property>
+                        <property name="margin-top">5</property>
+                        <property name="margin-bottom">5</property>
+                        <property name="action">select-folder</property>
+                        <property name="title" translatable="yes"/>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="pack-type">end</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkCheckButton" id="with_video_dir">
+                        <property name="label" translatable="yes">Same as Video Location</property>
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="receives-default">False</property>
+                        <property name="active">True</property>
+                        <property name="draw-indicator">True</property>
+                        <signal name="toggled" handler="with_video_dir_toggled_cb" object="MyVideoAlbum" swapped="no"/>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">1</property>
+                      </packing>
+                    </child>
                   </object>
                 </child>
                 <child type="label">
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can-focus">False</property>
-                    <property name="label" translatable="yes">Save to the Directory</property>
+                    <property name="label" translatable="yes">Save Location</property>
                   </object>
                 </child>
               </object>
@@ -151,21 +180,7 @@ a 1280x720 'video.mp4' file under 'test' directory,duration 123.456 second
               </packing>
             </child>
             <child>
-              <object class="GtkCheckButton" id="with_video_dir">
-                <property name="label" translatable="yes">With The Video File</property>
-                <property name="visible">True</property>
-                <property name="can-focus">True</property>
-                <property name="receives-default">False</property>
-                <property name="active">True</property>
-                <property name="draw-indicator">True</property>
-                <signal name="toggled" handler="with_video_dir_toggled_cb" object="MyVideoAlbum" swapped="no"/>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="pack-type">end</property>
-                <property name="position">3</property>
-              </packing>
+              <placeholder/>
             </child>
             <child>
               <object class="GtkFrame">
