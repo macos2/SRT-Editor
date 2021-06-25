@@ -45,12 +45,13 @@ typedef struct {
   GtkStack *char_stack;
   GRegex *markup;
   GtkListStore *subtitle_list, *subtitle_list_edit_preview;
-  GtkAdjustment *subtitle_list_start_adj, *subtitle_list_end_adj;
+  GtkAdjustment *subtitle_list_start_adj, *subtitle_list_end_adj,*play_speed_adj;
   GtkTreeView *subtitle_treeview;
   GtkDrawingArea *pop_label_preview;
   GThreadPool *take_photo_thread;
   GtkDialog *subtitle_list_edit_dialog;
   MyVideoAlbum *videoalbum;
+  gdouble video_rotate,video_scale;
 } MyMainWinPrivate;
 
 enum {
@@ -152,7 +153,7 @@ void my_main_win_video_dir_album (GtkMenuItem *menuitem, MyMainWin *self) {
   gtk_widget_show_now (priv->videoalbum);
 }
 
-void my_main_win_prev_cb (GtkButton *button, MyMainWin *self) {
+void my_main_win_begin_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
   gst_element_set_state (priv->pipeline, GST_STATE_NULL);
   gst_element_set_state (priv->pipeline, GST_STATE_PAUSED);
@@ -161,17 +162,18 @@ void my_main_win_prev_cb (GtkButton *button, MyMainWin *self) {
 
 void my_main_win_play_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gst_element_set_state (priv->pipeline, GST_STATE_PLAYING);
   priv->cur_state = GST_STATE_PLAYING;
+  gst_element_set_state (priv->pipeline, GST_STATE_PLAYING);
+  my_main_win_play_speed_cb(NULL, self);
 }
 
 void my_main_win_pause_cb (GtkButton *button, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
-  gst_element_set_state (priv->pipeline, GST_STATE_PAUSED);
   priv->cur_state = GST_STATE_PAUSED;
+  gst_element_set_state (priv->pipeline, GST_STATE_PAUSED);
 }
 
-void my_main_win_next_cb (GtkButton *button, MyMainWin *self) {
+void my_main_win_end_cb (GtkButton *button, MyMainWin *self) {
   gint64 dur;
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
   GstQuery *duration = gst_query_new_duration (GST_FORMAT_TIME);
@@ -188,14 +190,57 @@ void my_main_win_next_cb (GtkButton *button, MyMainWin *self) {
   g_object_unref (bus);
 }
 
+void my_main_win_rotate_right_cb (GtkButton *button, MyMainWin *self){
+  MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
+  priv->video_rotate+=5./180.*G_PI;
+  while(priv->video_rotate>2.*G_PI){
+    priv->video_rotate-=2.*G_PI;
+  }
+  gtk_widget_queue_draw(self);
+}
+
+void my_main_win_rotate_left_cb (GtkButton *button, MyMainWin *self){
+  MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
+  priv->video_rotate-=5./180.*G_PI;
+  while(priv->video_rotate<-2.*G_PI){
+    priv->video_rotate+=2.*G_PI;
+  }
+  gtk_widget_queue_draw(self);
+}
+
+void my_main_win_play_speed_cb(GtkSpinButton *button,MyMainWin *self){
+  guint64 pos,dur;
+  gdouble playspeed;
+  MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
+  gst_element_query_position(priv->pipeline, GST_FORMAT_TIME, &pos);
+  gst_element_query_duration(priv->pipeline,GST_FORMAT_TIME, &dur);
+  playspeed=gtk_adjustment_get_value(priv->play_speed_adj);
+  if(playspeed>0){
+    gst_element_seek(priv->pipeline, playspeed, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE, GST_SEEK_TYPE_SET, pos, GST_SEEK_TYPE_END, 0);
+  }else{
+    gst_element_seek(priv->pipeline, playspeed, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, pos);
+  }
+}
+
+
+
+
+
+
 gboolean video_progress_change_value_cb (GtkScrollbar *video_progress,
 					 GtkScrollType scroll, gdouble value,
 					 MyMainWin *self) {
+  guint64 dur,pos=value * 1000000;
+  gdouble playspeed;
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
   gst_element_set_state (priv->pipeline, GST_STATE_PLAYING);
-  gst_element_seek_simple (priv->pipeline, GST_FORMAT_TIME,
-			   GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE,
-			   value * 1000000);
+  gst_element_query_duration(priv->pipeline,GST_FORMAT_TIME, &dur);
+  playspeed=gtk_adjustment_get_value(priv->play_speed_adj);
+  if(playspeed>0){
+    gst_element_seek(priv->pipeline, playspeed, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE, GST_SEEK_TYPE_SET, pos, GST_SEEK_TYPE_END, 0);
+  }else{
+    gst_element_seek(priv->pipeline, playspeed, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH|GST_SEEK_FLAG_ACCURATE,GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, pos);
+  }
   gst_element_set_state (priv->pipeline, priv->cur_state);
   return TRUE;
 }
@@ -1248,9 +1293,10 @@ void print_font_describe (PangoLayout *layout) {
 
 gboolean content_draw_cb (GtkDrawingArea *content, cairo_t *cr, MyMainWin *self) {
   MyMainWinPrivate *priv = my_main_win_get_instance_private (self);
+  gdouble r,a;
   gint w, h, n_subtitle, rows;
   gchar *br = NULL, *pbr = NULL;
-  gfloat radio;
+  gfloat radio0,radio1;
   gint64 dur, pos;
   GList *list, *unlist, *list_row = NULL;
   gint text_height, text_width, text_num, text_x, text_y;
@@ -1267,16 +1313,35 @@ gboolean content_draw_cb (GtkDrawingArea *content, cairo_t *cr, MyMainWin *self)
   cairo_fill (cr);
   cairo_stroke (cr);
 
-//draw the video
+//draw the video image
   if (priv->pixbuf != NULL) {
     cairo_save (cr);
     w = gdk_pixbuf_get_width (priv->pixbuf);
     h = gdk_pixbuf_get_height (priv->pixbuf);
+    r=sqrt(w*w*1.+h*h*1.);
+    a=atan(h/(w*1.));
+
     cairo_translate (cr, cw / 2., ch / 2.);
-    radio = (gfloat) cw / w;
-    if (((gfloat) ch / h) < radio) radio = (gfloat) ch / h;
-    cairo_scale (cr, radio, radio);
-    gdk_cairo_set_source_pixbuf (cr, priv->pixbuf, -0.5 * w, -0.5 * h);
+    cairo_rotate(cr, priv->video_rotate);
+
+    //fit the scale num after rotate.
+    h=r*sin(a+priv->video_rotate);
+    w=r*cos(a+priv->video_rotate);
+    h=abs(h);
+    w=abs(w);
+    radio0 = (gfloat) cw / w;
+    if (((gfloat) ch / h) < radio0) radio0 = (gfloat) ch / h;
+
+    h=r*sin(-a+priv->video_rotate);
+    w=r*cos(-a+priv->video_rotate);
+    h=abs(h);
+    w=abs(w);
+    radio1 = (gfloat) cw / w;
+    if (((gfloat) ch / h) < radio1) radio1 = (gfloat) ch / h;
+    if(radio0>radio1)radio0=radio1;
+    cairo_scale (cr, radio0, radio0);
+
+    gdk_cairo_set_source_pixbuf (cr, priv->pixbuf, -0.5 * gdk_pixbuf_get_width (priv->pixbuf), -0.5 * gdk_pixbuf_get_height (priv->pixbuf));
     cairo_paint (cr);
     cairo_restore (cr);
   }
@@ -1390,6 +1455,7 @@ void gst_bus_message_cb (GstBus *bus, GstMessage *message, MyMainWin *self) {
     }
     gtk_widget_queue_draw (priv->content);
   }
+  gst_element_set_state(priv->pipeline,  priv->cur_state);
 }
 
 static void *special_char_table[][12] = { { "General", 0x0021, 0x007f, 0x2600,
@@ -1461,10 +1527,14 @@ static void my_main_win_class_init (MyMainWinClass *klass) {
   gtk_widget_class_bind_template_callback(klass, my_main_win_save);
   gtk_widget_class_bind_template_callback(klass, my_main_win_save_as);
   gtk_widget_class_bind_template_callback(klass, content_draw_cb);
-  gtk_widget_class_bind_template_callback(klass, my_main_win_prev_cb);
+  gtk_widget_class_bind_template_callback(klass, my_main_win_begin_cb);
   gtk_widget_class_bind_template_callback(klass, my_main_win_play_cb);
   gtk_widget_class_bind_template_callback(klass, my_main_win_pause_cb);
-  gtk_widget_class_bind_template_callback(klass, my_main_win_next_cb);
+  gtk_widget_class_bind_template_callback(klass, my_main_win_end_cb);
+  gtk_widget_class_bind_template_callback(klass, my_main_win_rotate_left_cb);
+  gtk_widget_class_bind_template_callback(klass, my_main_win_rotate_right_cb);
+  gtk_widget_class_bind_template_callback(klass, my_main_win_play_speed_cb);
+
   gtk_widget_class_bind_template_callback(klass,
 					  video_progress_change_value_cb);
   gtk_widget_class_bind_template_callback(klass, volume_changed_cb);
@@ -1567,6 +1637,8 @@ static void my_main_win_class_init (MyMainWinClass *klass) {
 					       subtitle_list_start_adj);
   gtk_widget_class_bind_template_child_private(klass, MyMainWin,
 					       subtitle_list_end_adj);
+  gtk_widget_class_bind_template_child_private(klass, MyMainWin,
+					       play_speed_adj);
 
 }
 ;
@@ -1586,6 +1658,8 @@ static void my_main_win_init (MyMainWin *self) {
   priv->cur_state = GST_STATE_PAUSED;
   priv->subtitle_index = 1;
   priv->active_subtitle = NULL;
+  priv->video_rotate=0;
+  priv->video_scale=1.;
   gst_bin_add_many (priv->pipeline, priv->src, NULL);
   g_object_set (priv->src, "video-sink", priv->videosink, "audio-sink",
 		priv->audiosink, NULL);

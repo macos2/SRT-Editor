@@ -56,6 +56,13 @@
     <property name="can-focus">False</property>
     <property name="icon-name">media-playback-start-symbolic</property>
   </object>
+  <object class="GtkAdjustment" id="play_speed_adj">
+    <property name="lower">-60</property>
+    <property name="upper">60</property>
+    <property name="value">1</property>
+    <property name="step-increment">0.25</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkPopover" id="pop_label">
     <property name="can-focus">False</property>
     <property name="modal">False</property>
@@ -726,7 +733,7 @@ Regex Pattern
                 <property name="image">end1</property>
                 <property name="relief">none</property>
                 <property name="always-show-image">True</property>
-                <signal name="clicked" handler="my_main_win_prev_cb" object="MyMainWin" swapped="no"/>
+                <signal name="clicked" handler="my_main_win_begin_cb" object="MyMainWin" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">True</property>
@@ -774,7 +781,7 @@ Regex Pattern
                 <property name="image">end2</property>
                 <property name="relief">none</property>
                 <property name="always-show-image">True</property>
-                <signal name="clicked" handler="my_main_win_next_cb" object="MyMainWin" swapped="no"/>
+                <signal name="clicked" handler="my_main_win_end_cb" object="MyMainWin" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">True</property>
@@ -828,6 +835,66 @@ audio-volume-medium-symbolic</property>
                 <property name="visible">True</property>
                 <property name="can-focus">True</property>
                 <property name="receives-default">True</property>
+                <property name="relief">none</property>
+                <signal name="clicked" handler="my_main_win_rotate_left_cb" object="MyMainWin" swapped="no"/>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="icon-name">object-rotate-left-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">5</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
+                <property name="relief">none</property>
+                <signal name="clicked" handler="my_main_win_rotate_right_cb" object="MyMainWin" swapped="no"/>
+                <child>
+                  <object class="GtkImage">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="icon-name">object-rotate-right-symbolic</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">6</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSpinButton">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="tooltip-text" translatable="yes">Play Speed</property>
+                <property name="input-purpose">number</property>
+                <property name="adjustment">play_speed_adj</property>
+                <property name="climb-rate">0.25</property>
+                <property name="digits">2</property>
+                <property name="value">1</property>
+                <signal name="value-changed" handler="my_main_win_play_speed_cb" object="MyMainWin" swapped="no"/>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">9</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton">
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="receives-default">True</property>
                 <property name="image">photo</property>
                 <property name="relief">none</property>
                 <property name="always-show-image">True</property>
@@ -836,7 +903,7 @@ audio-volume-medium-symbolic</property>
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">5</property>
+                <property name="position">10</property>
               </packing>
             </child>
             <child>
@@ -851,7 +918,7 @@ audio-volume-medium-symbolic</property>
               <packing>
                 <property name="expand">True</property>
                 <property name="fill">True</property>
-                <property name="position">6</property>
+                <property name="position">11</property>
               </packing>
             </child>
           </object>
@@ -1672,7 +1739,7 @@ It will be saved to home/photo directory</property>
                         <property name="margin-right">5</property>
                         <property name="margin-top">5</property>
                         <property name="margin-bottom">5</property>
-                        <property name="font">Sans 48</property>
+                        <property name="font">Sans 12</property>
                         <property name="language">zh-cn</property>
                         <property name="preview-text">Oh , My God !!!</property>
                         <property name="show-style">False</property>
